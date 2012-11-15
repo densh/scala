@@ -44,7 +44,7 @@ private[scala] abstract class QuasiQuoteApply {
   val universeType = universe.tpe
   val nameType = memberType(universeType, "Name")
   val treeType = memberType(universeType, "Tree")
-  val liftableType = ctx.mirror.staticClass("scala.reflect.quasiquotes.Liftable").toType
+  val liftableType = ctx.mirror.staticClass("scala.reflect.api.Liftable").toType
 
   val (code, subsmap) = {
     val sb = new StringBuilder(parts.head)
