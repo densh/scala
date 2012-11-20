@@ -21,7 +21,7 @@ private[scala] abstract class QuasiQuoteApply {
 
   val qqprefix = "$quasiquote$"
   val qquniverse = "$u"
-  val qqdebug = true
+  val qqdebug = false
 
   val ctx: macros.Context
   val args: List[ctx.Expr[Any]]
