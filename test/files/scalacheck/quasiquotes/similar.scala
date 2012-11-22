@@ -21,9 +21,14 @@ trait TreeSimiliarity {
       def apply1(ll1: List[List[Tree]], ll2: List[List[Tree]]): Boolean =
         (ll1.length == ll2.length) && ll1.zip(ll2).forall(pair => apply(pair._1, pair._2))
 
-      def apply2(l1: List[ImportSelector], l2: List[ImportSelector]) = false //FIXME
+      def apply2(l1: List[ImportSelector], l2: List[ImportSelector]) =
+        (l1.length == l2.length) && l1.zip(l2).forall(pair => apply(pair._1, pair._2))
 
-      def apply(mod1: Modifiers, mod2: Modifiers) = mod1 == mod2
+      def apply(mod1: Modifiers, mod2: Modifiers): Boolean = mod1 == mod2
+
+      def apply(sel1: ImportSelector, sel2: ImportSelector): Boolean =
+        apply(sel1.name, sel2.name) && apply(sel1.rename, sel2.rename) &&
+        sel1.namePos == sel2.namePos && sel1.renamePos == sel2.renamePos
 
       def apply(t1: Tree, t2: Tree): Boolean = {
         val res = (t1, t2) match {
@@ -121,7 +126,7 @@ trait TreeSimiliarity {
           case (EmptyTree, EmptyTree) => true
           case _ => false
         }
-        //if(!res) println("---\n" + showRaw(t1, printIds=true) + "\n=/=\n" + showRaw(t2, printIds=true) )
+        if(!res) println("---\n" + showRaw(t1, printIds=true) + "\n=/=\n" + showRaw(t2, printIds=true) )
         res
       }
     }

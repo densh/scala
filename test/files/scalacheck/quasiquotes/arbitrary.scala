@@ -260,9 +260,4 @@ trait ArbitraryTreesAndNames {
   implicit val arbDefDef: Arbitrary[DefDef] = Arbitrary(sized(s => genDefDef(s)))
   implicit val arbTypeDef: Arbitrary[TypeDef] = Arbitrary(sized(s => genTypeDef(s)))
   implicit val arbTree: Arbitrary[Tree] = Arbitrary(sized(s => genTree(s)))
-
-  for(i <- 1 to 10) {
-    println("")
-    println(genTree(5).sample match { case Some(t) => t.toString; case None => "" })
-  }
 }
