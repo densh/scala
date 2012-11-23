@@ -3,6 +3,35 @@ import scala.reflect.runtime.universe._
 
 trait TreeSimiliarity {
 
+  val ellipsisFlag = (1L << 60).asInstanceOf[FlagSet]
+  val ellipsisMods = Modifiers(ellipsisFlag)
+  val ellipsisTypeName = newTypeName("…")
+  val ellipsisTermName = newTermName("…")
+
+  val ellipsisTree = EmptyTree.asInstanceOf[scala.reflect.internal.SymbolTable#Tree].updateAttachment(ellipsis).asInstanceOf[Tree]
+  val ellipsisValDef = ValDef(Modifiers(), ellipsis, EmptyTree, EmptyTree)
+
+  object ellipsis {
+    override def equals(other: Any) = other match {
+      case name: TermName => name == ellipsisTermName
+      case name: TypeName => name == ellipsisTypeName
+      case flag: Long => ellipsisFlag == flag
+      case mods: Modifiers => mods.hasFlag(ellipsisFlag)
+      case Ident(name) => ellipsis == name
+      case valdef: ValDef => valdef.name == ellipsisTermName
+      case tree: Tree => tree == ellipsisTree
+      case _ => other == ellipsis
+    }
+  }
+
+  implicit def ellipsisToTermName(v: ellipsis.type): TermName = ellipsisTermName
+  implicit def ellipsisToTypeName(v: ellipsis.type): TypeName = ellipsisTypeName
+  implicit def ellipsisToFlagSet(v: ellipsis.type): FlagSet = ellipsisFlag
+  implicit def ellipsisToModifiers(v: ellipsis.type): Modifiers = ellipsisMods
+  implicit def ellipsisToTree(v: ellipsis.type): Tree = ellipsisTree
+  implicit def ellipsisToString(v: ellipsis.type): String = "…"
+
+
   implicit class TestSimilar(tree1: Tree) {
 
     def ≈(tree2: Tree) = similar(tree1, tree2)
@@ -13,7 +42,8 @@ trait TreeSimiliarity {
 
       def apply(i1: Int, i2: Int) = i1 == i2
 
-      def apply(name1: Name, name2: Name): Boolean = name1 == name2
+      def apply(name1: Name, name2: Name): Boolean =
+        (name1 == name2) || (ellipsis == name1) || (ellipsis == name2)
 
       def apply(l1: List[Tree], l2: List[Tree]): Boolean =
         (l1.length == l2.length) && l1.zip(l2).forall(pair => apply(pair._1, pair._2))
@@ -24,14 +54,14 @@ trait TreeSimiliarity {
       def apply2(l1: List[ImportSelector], l2: List[ImportSelector]) =
         (l1.length == l2.length) && l1.zip(l2).forall(pair => apply(pair._1, pair._2))
 
-      def apply(mod1: Modifiers, mod2: Modifiers): Boolean = mod1 == mod2
+      def apply(mod1: Modifiers, mod2: Modifiers): Boolean =
+        (mod1 == mod2) || (ellipsis == mod1) || (ellipsis == mod2)
 
       def apply(sel1: ImportSelector, sel2: ImportSelector): Boolean =
-        apply(sel1.name, sel2.name) && apply(sel1.rename, sel2.rename) &&
-        sel1.namePos == sel2.namePos && sel1.renamePos == sel2.renamePos
+        apply(sel1.name, sel2.name) && apply(sel1.rename, sel2.rename)
 
       def apply(t1: Tree, t2: Tree): Boolean = {
-        val res = (t1, t2) match {
+        val res = ((t1, t2) match {
           case (Alternative(trees1), Alternative(trees2)) =>
             apply(trees1, trees2)
           case (Annotated(annot1, arg1), Annotated(annot2, arg2)) =>
@@ -125,7 +155,7 @@ trait TreeSimiliarity {
           case (TypeTree(), TypeTree()) => true
           case (EmptyTree, EmptyTree) => true
           case _ => false
-        }
+        }) || (ellipsis == t1) || (ellipsis == t2)
         if(!res) println("---\n" + showRaw(t1, printIds=true) + "\n=/=\n" + showRaw(t2, printIds=true) )
         res
       }
