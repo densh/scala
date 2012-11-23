@@ -2,6 +2,8 @@ package scala.tools
 package reflect
 
 import scala.tools.nsc.Global
+import scala.reflect.internal.util.BatchSourceFile
+import scala.compat.Platform.EOL
 
 import scala.reflect.api._
 import scala.reflect.macros
@@ -19,18 +21,17 @@ private[scala] abstract class QuasiQuoteApply {
 
   val (universe, args, parts) =
     ctx.macroApplication match {
-      case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), args0) =>
+      case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), args) =>
         val parts = parts0.map(_ match {
           case Literal(Constant(s: String)) => s
           case _ => throw QuasiQuoteException("Quasi-quotes can only be used with constant string arguments.")
         })
-        val args = args0.map(ctx.Expr(_))
+        //val args = args0.map(ctx.tree(_))
+        if(args.length != parts.length - 1)
+          throw QuasiQuoteException("Imbalanced amount of arguments.")
         (universe, args, parts)
       case _ => throw QuasiQuoteException("Couldn't parse call prefix tree.")
     }
-
-  if(args.length != parts.length - 1)
-    throw QuasiQuoteException("Imbalanced amount of arguments.")
 
   val universeType = universe.tpe
   val nameType = memberType(universeType, "Name")
@@ -41,12 +42,12 @@ private[scala] abstract class QuasiQuoteApply {
 
   val (code, subsmap) = {
     val sb = new StringBuilder(parts.head)
-    val subsmap = mutable.Map[String, Expr[Any]]()
-    for((expr, part) <- args.zip(parts.tail)) {
+    val subsmap = mutable.Map[String, Tree]()
+    for((tree, part) <- args.zip(parts.tail)) {
       val placeholder = ctx.fresh(qqprefix)
       sb.append(placeholder)
       sb.append(part)
-      subsmap(placeholder) = expr
+      subsmap(placeholder) = tree
     }
     (sb.toString, subsmap)
   }
@@ -66,11 +67,19 @@ private[scala] abstract class QuasiQuoteApply {
   if(qqdebug) println(s"result tree\n=${result}\n=${showRaw(result)}\n")
 
 
-  def parse(str: String): Tree = {
+  def parse(code: String): Tree = {
     val global = ctx.universe.asInstanceOf[Global]
-
-
-    EmptyTree
+    import global._
+    val wrappedCode = "object wrapper {" + EOL + code + EOL + "}"
+    val file = new BatchSourceFile("<quasiquotes>", wrappedCode)
+    val unit = new CompilationUnit(file)
+    val parser = new syntaxAnalyzer.UnitParser(unit)
+    val wrappedTree = parser.parse()
+    val PackageDef(_, List(ModuleDef(_, _, Template(_, _, _ :: parsed)))) = wrappedTree
+    (parsed match {
+      case tree :: Nil => tree
+      case stats :+ tree => Block(stats, tree)
+    }).asInstanceOf[ctx.universe.Tree]
   }
 
   def wrap(t: Tree) =
@@ -85,11 +94,11 @@ private[scala] abstract class QuasiQuoteApply {
 
     def unapply(name: Name): Option[Tree] =
       subsmap.get(name.encoded) match {
-        case Some(expr) =>
-          val liftType = appliedType(liftableType, List(expr.actualType))
+        case Some(tree) =>
+          val liftType = appliedType(liftableType, List(tree.tpe))
           val lift = ctx.inferImplicitValue(liftType, silent = true)
           if(lift != EmptyTree) {
-            Some(wrapLift(lift, expr.tree))
+            Some(wrapLift(lift, tree))
           } else
             None
         case None => None
@@ -104,35 +113,31 @@ private[scala] abstract class QuasiQuoteApply {
   object SubsToTree {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded) match {
-        case Some(expr) =>
-          if(expr.actualType <:< treeType)
-            Some(expr.tree)
-          else
-            None
-        case None => None
+      subsmap.get(name.encoded).flatMap { tree =>
+        if(tree.tpe <:< treeType)
+          Some(tree)
+        else
+          None
       }
   }
 
   object SubsToNameTree {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded) match {
-        case Some(expr) =>
-          if(expr.actualType <:< nameType)
-            Some(expr.tree)
-          else
-            None
-        case None => None
+      subsmap.get(name.encoded).flatMap { tree =>
+        if(tree.tpe <:< nameType)
+          Some(tree)
+        else
+          None
       }
   }
 
   object SubsToListTree {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded).flatMap { expr =>
-        if(expr.actualType <:< listTreeType)
-          Some(expr.tree)
+      subsmap.get(name.encoded).flatMap { tree =>
+        if(tree.tpe <:< listTreeType)
+          Some(tree)
         else
           None
       }
@@ -151,9 +156,9 @@ private[scala] abstract class QuasiQuoteApply {
       reifyMirrorObject(EmptyTree)
     case Literal(const @ Constant(_)) =>
       mirrorCall("Literal", reifyProduct(const.asInstanceOf[Product]))
-    case Import(expr, selectors) =>
+    case Import(tree, selectors) =>
       val args = mkList(selectors.map(s => reifyProduct(s.asInstanceOf[Product])))
-      mirrorCall("Import", reifyAny(expr), args)
+      mirrorCall("Import", reifyAny(tree), args)
     case _ =>
       reifyProduct(tree.asInstanceOf[Product])
   }
@@ -184,7 +189,7 @@ private[scala] abstract class QuasiQuoteApply {
     } else
       name match {
         case SubsToNameTree(tree) => tree
-        case _ => throw QuasiQuoteException(s"Name expected but ${subsmap(name.encoded).actualType} found")
+        case _ => throw QuasiQuoteException(s"Name expected but ${subsmap(name.encoded).tpe} found")
       }
   }
 
