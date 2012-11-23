@@ -1,40 +1,31 @@
-package scala.reflect
-package internal
+package scala.tools
+package reflect
+
+import scala.tools.nsc.Global
 
 import scala.reflect.api._
 import scala.reflect.macros
 import scala.collection.mutable
 
 
-private[scala] object QuasiQuoteMacro {
-
-  def apply(c: macros.Context)(args0: c.Expr[Any]*): c.Expr[Any] = {
-    val impl = new {
-      val ctx: c.type = c
-      val args = args0.toList
-    } with QuasiQuoteApply
-    c.Expr(impl.result)
-  }
-}
-
 private[scala] abstract class QuasiQuoteApply {
+
+  val ctx: macros.Context
+  import ctx.universe._
 
   val qqprefix = "$quasiquote$"
   val qquniverse = "$u"
   val qqdebug = false
 
-  val ctx: macros.Context
-  val args: List[ctx.Expr[Any]]
-  import ctx.universe._
-
-  val (universe, parts) =
-    ctx.prefix.tree match {
-      case Select(Apply(Select(universe, _), List(Apply(_, args))), _) =>
-        val parts = args.map(_ match {
+  val (universe, args, parts) =
+    ctx.macroApplication match {
+      case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), args0) =>
+        val parts = parts0.map(_ match {
           case Literal(Constant(s: String)) => s
           case _ => throw QuasiQuoteException("Quasi-quotes can only be used with constant string arguments.")
         })
-        (universe, parts)
+        val args = args0.map(ctx.Expr(_))
+        (universe, args, parts)
       case _ => throw QuasiQuoteException("Couldn't parse call prefix tree.")
     }
 
@@ -62,7 +53,7 @@ private[scala] abstract class QuasiQuoteApply {
 
   if(qqdebug) println(s"\ncode to parse=\n$code\n")
 
-  val tree = ctx.parse(code)
+  val tree = parse(code)
 
   if(qqdebug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
 
@@ -73,6 +64,14 @@ private[scala] abstract class QuasiQuoteApply {
   val result = wrap(reified)
 
   if(qqdebug) println(s"result tree\n=${result}\n=${showRaw(result)}\n")
+
+
+  def parse(str: String): Tree = {
+    val global = ctx.universe.asInstanceOf[Global]
+
+
+    EmptyTree
+  }
 
   def wrap(t: Tree) =
     Block(

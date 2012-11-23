@@ -532,6 +532,10 @@ trait Definitions extends api.StandardDefinitions {
     lazy val StringContextClass                  = requiredClass[scala.StringContext]
          def StringContext_f                     = getMemberMethod(StringContextClass, nme.f)
 
+    lazy val QuasiQuoteClass           = if (ApiUniverseClass != NoSymbol) getMember(ApiUniverseClass, newTypeName("QuasiQuote")) else NoSymbol
+    lazy val QuasiQuoteClass_q         = if (QuasiQuoteClass != NoSymbol) getMember(QuasiQuoteClass, newTermName("q")) else NoSymbol
+    lazy val QuasiQuoteClass_q_apply   = if (QuasiQuoteClass_q != NoSymbol) getMember(QuasiQuoteClass_q, newTermName("apply")) else NoSymbol
+
     lazy val ScalaSignatureAnnotation = requiredClass[scala.reflect.ScalaSignature]
     lazy val ScalaLongSignatureAnnotation = requiredClass[scala.reflect.ScalaLongSignature]
 

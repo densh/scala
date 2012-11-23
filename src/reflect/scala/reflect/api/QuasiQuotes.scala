@@ -8,8 +8,9 @@ trait QuasiQuotes { self: Universe =>
 
   implicit class QuasiQuote(ctx: StringContext) {
     object q {
-      def apply(args0: Any*) =
-        macro scala.reflect.internal.QuasiQuoteMacro.apply
+      // implementation is hardwired to `scala.tools.reflect.QuasiQuotes`
+      // using the mechanism implemented in `scala.tools.reflect.FastTrack`
+      def apply(args0: Any*): Any = ??? //macro
     }
   }
 }
