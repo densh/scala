@@ -45,6 +45,8 @@ private[scala] abstract class QuasiQuoteApply {
   val nameType = memberType(universeType, "Name")
   val treeType = memberType(universeType, "Tree")
   val liftableType = ctx.mirror.staticClass("scala.reflect.api.Liftable").toType
+  val listType = ctx.mirror.staticClass("scala.collection.immutable.List").toType
+  val listTreeType = appliedType(listType, List(treeType))
 
   val (code, subsmap) = {
     val sb = new StringBuilder(parts.head)
@@ -58,15 +60,19 @@ private[scala] abstract class QuasiQuoteApply {
     (sb.toString, subsmap)
   }
 
+  if(qqdebug) println(s"\ncode to parse=\n$code\n")
+
   val tree = ctx.parse(code)
+
+  if(qqdebug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
+
   val reified = reifyTree(tree)
+
+  if(qqdebug) println(s"reified tree\n=${reified}\n=${showRaw(reified)}\n")
+
   val result = wrap(reified)
 
-  if(qqdebug) {
-    println(s"\nparsed code\n=${tree}\n=${showRaw(tree)}")
-    println(s"\nreifiedtree\n=${reified}\n=${showRaw(reified)}")
-    println(s"\nreifiedtree\n=${result}\n=${showRaw(result)}")
-  }
+  if(qqdebug) println(s"result tree\n=${result}\n=${showRaw(result)}\n")
 
   def wrap(t: Tree) =
     Block(
@@ -122,11 +128,26 @@ private[scala] abstract class QuasiQuoteApply {
       }
   }
 
+  object SubsToListTree {
+
+    def unapply(name: Name): Option[Tree] =
+      subsmap.get(name.encoded).flatMap { expr =>
+        if(expr.actualType <:< listTreeType)
+          Some(expr.tree)
+        else
+          None
+      }
+  }
+
   def reifyTree(tree: Tree): Tree = tree match {
     case Ident(SubsToTree(tree)) => tree
     case Ident(SubsToLiftable(tree)) => tree
-    //case emptyValDef =>
-    //  mirrorBuildSelect("emptyValDef")
+
+    // case Block(List(), SubsToListTree(listtree)) =>
+    //   Block(Select(listtree, newTermName("init")), Select(listtree, newTermName("last")))
+
+    // case emptyValDef =>
+    //   mirrorBuildSelect("emptyValDef")
     case EmptyTree =>
       reifyMirrorObject(EmptyTree)
     case Literal(const @ Constant(_)) =>
@@ -169,7 +190,12 @@ private[scala] abstract class QuasiQuoteApply {
   }
 
   def reifyList(xs: List[Any]): Tree =
-    mkList(xs.map(reifyAny))
+    Select(
+      mkList(xs.map { _ match {
+        case Ident(SubsToListTree(listtree)) => listtree
+        case x @ _ => mkList(List(reifyAny(x)))
+      }}),
+      newTermName("flatten"))
 
   def reifyMirrorObject(name: String): Tree =
     mirrorSelect(name)
