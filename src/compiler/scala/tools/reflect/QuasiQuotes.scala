@@ -2,7 +2,8 @@ package scala.tools
 package reflect
 
 import scala.tools.nsc.Global
-import scala.reflect.internal.util.BatchSourceFile
+import scala.tools.nsc.ast.parser.Parsers
+import scala.reflect.internal.util.{BatchSourceFile, SourceFile}
 import scala.compat.Platform.EOL
 
 import scala.reflect.api._
@@ -68,13 +69,12 @@ private[scala] abstract class QuasiQuoteApply {
 
 
   def parse(code: String): Tree = {
-    val global = ctx.universe.asInstanceOf[Global]
-    import global._
+    val global0 = ctx.universe.asInstanceOf[Global]
+    import global0._
     val wrappedCode = "object wrapper {" + EOL + code + EOL + "}"
     val file = new BatchSourceFile("<quasiquotes>", wrappedCode)
-    val unit = new CompilationUnit(file)
-    val parser = new syntaxAnalyzer.UnitParser(unit)
-    val wrappedTree = parser.parse()
+    val parser = new { val global: global0.type = global0 } with QuasiQuoteParser
+    val wrappedTree = parser.parse(file)
     val PackageDef(_, List(ModuleDef(_, _, Template(_, _, _ :: parsed)))) = wrappedTree
     (parsed match {
       case tree :: Nil => tree
@@ -263,4 +263,11 @@ private[scala] abstract class QuasiQuoteApply {
     val sym = thistype.typeSymbol.typeSignature.member(newTypeName(name))
     sym.asType.toType.typeConstructor.asSeenFrom(thistype, sym.owner)
   }
+}
+
+private[scala] abstract class QuasiQuoteParser extends Parsers {
+
+  def parse(file: SourceFile): global.Tree = new QuasiQuoteSourceParser(file).parse()
+
+  class QuasiQuoteSourceParser(source0: SourceFile) extends SourceFileParser(source0)
 }
