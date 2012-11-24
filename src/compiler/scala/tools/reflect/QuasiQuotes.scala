@@ -3,22 +3,23 @@ package reflect
 
 import scala.tools.nsc.Global
 import scala.tools.nsc.ast.parser.Parsers
-import scala.reflect.internal.util.{BatchSourceFile, SourceFile}
 import scala.compat.Platform.EOL
+import scala.reflect.internal.util.{BatchSourceFile, SourceFile}
+import scala.reflect.reify.Reifier
 
 import scala.reflect.api._
 import scala.reflect.macros
 import scala.collection.mutable
 
 
-private[scala] abstract class QuasiQuoteApply {
+abstract class QuasiQuoteApply {
 
   val ctx: macros.Context
   import ctx.universe._
+  val g = ctx.universe.asInstanceOf[Global]
 
   val qqprefix = "$quasiquote$"
-  val qquniverse = "$u"
-  val qqdebug = false
+  val qqdebug = true
 
   val (universe, args, parts) =
     ctx.macroApplication match {
@@ -27,19 +28,11 @@ private[scala] abstract class QuasiQuoteApply {
           case Literal(Constant(s: String)) => s
           case _ => throw QuasiQuoteException("Quasi-quotes can only be used with constant string arguments.")
         })
-        //val args = args0.map(ctx.tree(_))
         if(args.length != parts.length - 1)
           throw QuasiQuoteException("Imbalanced amount of arguments.")
         (universe, args, parts)
       case _ => throw QuasiQuoteException("Couldn't parse call prefix tree.")
     }
-
-  val universeType = universe.tpe
-  val nameType = memberType(universeType, "Name")
-  val treeType = memberType(universeType, "Tree")
-  val liftableType = ctx.mirror.staticClass("scala.reflect.api.Liftable").toType
-  val listType = ctx.mirror.staticClass("scala.collection.immutable.List").toType
-  val listTreeType = appliedType(listType, List(treeType))
 
   val (code, subsmap) = {
     val sb = new StringBuilder(parts.head)
@@ -50,7 +43,7 @@ private[scala] abstract class QuasiQuoteApply {
       sb.append(part)
       subsmap(placeholder) = tree
     }
-    (sb.toString, subsmap)
+    (sb.toString, subsmap.toMap)
   }
 
   if(qqdebug) println(s"\ncode to parse=\n$code\n")
@@ -69,26 +62,67 @@ private[scala] abstract class QuasiQuoteApply {
 
 
   def parse(code: String): Tree = {
-    val global0 = ctx.universe.asInstanceOf[Global]
-    import global0._
     val wrappedCode = "object wrapper {" + EOL + code + EOL + "}"
     val file = new BatchSourceFile("<quasiquotes>", wrappedCode)
-    val parser = new { val global: global0.type = global0 } with QuasiQuoteParser
+    val parser = new { val global: g.type = g } with QuasiQuoteParser
     val wrappedTree = parser.parse(file)
-    val PackageDef(_, List(ModuleDef(_, _, Template(_, _, _ :: parsed)))) = wrappedTree
+    val g.PackageDef(_, List(g.ModuleDef(_, _, g.Template(_, _, _ :: parsed)))) = wrappedTree
     (parsed match {
       case tree :: Nil => tree
-      case stats :+ tree => Block(stats, tree)
+      case stats :+ tree => g.Block(stats, tree)
     }).asInstanceOf[ctx.universe.Tree]
+  }
+
+  def reifyTree(tree: Tree) = {
+    val ctx0 = ctx
+    val subsmap0 = subsmap
+    val universe0 = universe
+    val reifier = new {
+      val global: g.type = g
+      val typer: g.analyzer.Typer = null
+      val universe: g.Tree = universe0.asInstanceOf[g.Tree]
+      val mirror: g.Tree = g.EmptyTree
+      val reifee: Any = null
+      val concrete: Boolean = false
+      val subsmap: Map[String, g.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[g.Tree])
+      val ctx: ctx0.type = ctx0
+    } with QuasiQuoteReifier
+    reifier.reifyTree(tree.asInstanceOf[g.Tree]).asInstanceOf[ctx.universe.Tree]
   }
 
   def wrap(t: Tree) =
     Block(
       List(ValDef(Modifiers(),
-        newTermName(qquniverse),
+        g.nme.UNIVERSE_SHORT.asInstanceOf[TermName],
         SingletonTypeTree(universe),
         universe)),
       t)
+}
+
+abstract class QuasiQuoteParser extends Parsers {
+
+  def parse(file: SourceFile): global.Tree = new QuasiQuoteSourceParser(file).parse()
+
+  class QuasiQuoteSourceParser(source0: SourceFile) extends SourceFileParser(source0)
+}
+
+abstract class QuasiQuoteReifier extends Reifier {
+  import global._
+
+  val subsmap: Map[String, Tree]
+  val ctx: macros.Context
+
+  val universeType = universe.tpe
+  val nameType = memberType(universeType, "Name")
+  val treeType = memberType(universeType, "Tree")
+  val liftableType = ctx.mirror.staticClass("scala.reflect.api.Liftable").toType.asInstanceOf[Type]
+  val listType = ctx.mirror.staticClass("scala.collection.immutable.List").toType.asInstanceOf[Type]
+  val listTreeType = appliedType(listType, List(treeType))
+
+  def memberType(thistype: Type, name: String): Type = {
+    val sym = thistype.typeSymbol.typeSignature.member(newTypeName(name))
+    sym.asType.toType.typeConstructor.asSeenFrom(thistype, sym.owner)
+  }
 
   object SubsToLiftable {
 
@@ -96,7 +130,7 @@ private[scala] abstract class QuasiQuoteApply {
       subsmap.get(name.encoded) match {
         case Some(tree) =>
           val liftType = appliedType(liftableType, List(tree.tpe))
-          val lift = ctx.inferImplicitValue(liftType, silent = true)
+          val lift = ctx.inferImplicitValue(liftType.asInstanceOf[ctx.Type], silent = true).asInstanceOf[Tree]
           if(lift != EmptyTree) {
             Some(wrapLift(lift, tree))
           } else
@@ -143,13 +177,11 @@ private[scala] abstract class QuasiQuoteApply {
       }
   }
 
-  def reifyTree(tree: Tree): Tree = tree match {
+  override def reifyTree(tree: Tree): Tree = tree match {
     case Ident(SubsToTree(tree)) => tree
     case Ident(SubsToLiftable(tree)) => tree
-
     // case Block(List(), SubsToListTree(listtree)) =>
     //   Block(Select(listtree, newTermName("init")), Select(listtree, newTermName("last")))
-
     // case emptyValDef =>
     //   mirrorBuildSelect("emptyValDef")
     case EmptyTree =>
@@ -158,27 +190,12 @@ private[scala] abstract class QuasiQuoteApply {
       mirrorCall("Literal", reifyProduct(const.asInstanceOf[Product]))
     case Import(tree, selectors) =>
       val args = mkList(selectors.map(s => reifyProduct(s.asInstanceOf[Product])))
-      mirrorCall("Import", reifyAny(tree), args)
+      mirrorCall("Import", reify(tree), args)
     case _ =>
       reifyProduct(tree.asInstanceOf[Product])
   }
 
-  def reifyAny(reifee: Any): Tree = reifee match {
-    case name: Name               => reifyName(name)
-    case tree: Tree               => reifyTree(tree)
-    case mods: Modifiers          => reifyModifiers(mods)
-    case xs: List[_]              => reifyList(xs)
-    case s: String                => Literal(Constant(s))
-    case v if isAnyVal(v)         => Literal(Constant(v))
-    case null                     => Literal(Constant(null))
-    case _                        =>
-      throw new QuasiQuoteException(s"Couldn't reify $reifee of type ${reifee.getClass}.")
-  }
-
-  def reifyModifiers(m: Modifiers) =
-    mirrorFactoryCall("Modifiers", mirrorBuildCall("flagsFromBits", reifyAny(m.flags)), reifyAny(m.privateWithin), reifyAny(m.annotations))
-
-  def reifyName(name: Name): Tree = {
+  override def reifyName(name: Name): Tree = {
     if(!subsmap.contains(name.encoded)) {
       val factory =
         if (name.isTypeName)
@@ -193,81 +210,12 @@ private[scala] abstract class QuasiQuoteApply {
       }
   }
 
-  def reifyList(xs: List[Any]): Tree =
+  override def reifyList(xs: List[Any]): Tree =
     Select(
       mkList(xs.map { _ match {
         case Ident(SubsToListTree(listtree)) => listtree
-        case x @ _ => mkList(List(reifyAny(x)))
+        case x @ _ => mkList(List(reify(x)))
       }}),
       newTermName("flatten"))
 
-  def reifyMirrorObject(name: String): Tree =
-    mirrorSelect(name)
-
-  def reifyMirrorObject(x: Product): Tree =
-    reifyMirrorObject(x.productPrefix)
-
-  def reifyProduct(x: Product): Tree = {
-    val prefix = x.productPrefix
-    val elements = x.productIterator.toList
-    if (prefix.startsWith("Tuple"))
-      scalaFactoryCall(prefix, elements.map(reifyAny).toList: _*)
-    else
-      mirrorCall(prefix, elements.map(reifyAny): _*)
-  }
-
-  def termPath(fullname: String): Tree = {
-    val parts = fullname split "\\."
-    val prefixParts = parts.init
-    val lastName = newTermName(parts.last)
-    if (prefixParts.isEmpty) Ident(lastName)
-    else {
-      val prefixTree = ((Ident(prefixParts.head): Tree) /: prefixParts.tail)(Select(_, _))
-      Select(prefixTree, lastName)
-    }
-  }
-
-  def call(fname: String, args: Tree*): Tree =
-    Apply(termPath(fname), args.toList)
-
-  def scalaFactoryCall(name: String, args: Tree*): Tree =
-    call(s"scala.$name.apply", args: _*)
-
-  def mirrorCall(name: String, args: Tree*): Tree =
-    call(s"$qquniverse.$name", args: _*)
-
-  def mirrorSelect(name: String): Tree =
-    termPath(s"$qquniverse.$name")
-
-  def mirrorBuildSelect(name: String): Tree =
-    termPath(s"$qquniverse.build.$name")
-
-  def mirrorFactoryCall(value: Product, args: Tree*): Tree =
-    mirrorFactoryCall(value.productPrefix, args: _*)
-
-  def mirrorFactoryCall(prefix: String, args: Tree*): Tree =
-    mirrorCall(prefix, args: _*)
-
-  def mirrorBuildCall(name: String, args: Tree*): Tree =
-    call(s"$qquniverse.build.$name", args: _*)
-
-  def mkList(args: List[Tree]): Tree =
-    scalaFactoryCall("collection.immutable.List", args: _*)
-
-  def isAnyVal(x: Any) = x match {
-    case _: Byte | _: Short | _: Char | _: Int | _: Long | _: Float | _: Double | _: Boolean | _: Unit => true
-    case _                                                                                             => false
-  }
-
-  def memberType(thistype: Type, name: String): Type = {
-    val sym = thistype.typeSymbol.typeSignature.member(newTypeName(name))
-    sym.asType.toType.typeConstructor.asSeenFrom(thistype, sym.owner)
-  }
-}
-
-private[scala] abstract class QuasiQuoteParser extends Parsers {
-
-  def parse(file: SourceFile): global.Tree = new QuasiQuoteSourceParser(file).parse()
-
-  class QuasiQuoteSourceParser(source0: SourceFile) extends SourceFileParser(source0)
 }
