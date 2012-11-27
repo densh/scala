@@ -23,10 +23,12 @@ abstract class SyntaxAnalyzer extends SubComponent with Parsers with MarkupParse
     def apply(unit: global.CompilationUnit) {
       import global._
       informProgress("parsing " + unit)
-      unit.body =
-        if (unit.isJava) new JavaUnitParser(unit).parse()
-        else if (reporter.incompleteHandled) new UnitParser(unit).parse()
-        else new UnitParser(unit).smartParse()
+      if (unit.body == EmptyTree) {
+        unit.body =
+          if (unit.isJava) new JavaUnitParser(unit).parse()
+          else if (reporter.incompleteHandled) new UnitParser(unit).parse()
+          else new UnitParser(unit).smartParse()
+      }
 
       if (settings.Yrangepos.value && !reporter.hasErrors)
         validatePositions(unit.body)
