@@ -154,9 +154,26 @@ object Test extends Properties("quasiquotes")
         TypeBoundsTree(t1, t2))
   }
 
-  // property("splice tparams into typedef") = forAll { (T: TypeName, tparams: List[TypeDef], t: Tree) =>
-  //   q"type $T[$tparams] = $t" ≈ TypeDef(Modifiers(), T, tparams, t)
-  // }
+  property("splice tparams into typedef (1)") = forAll { (T: TypeName, targs: List[TypeDef], t: Tree) =>
+    q"type $T[$targs] = $t" ≈ TypeDef(Modifiers(), T, targs, t)
+  }
+
+  property("splice tparams into typedef (2)") = forAll { (T: TypeName, targs1: List[TypeDef], targs2: List[TypeDef], t: Tree) =>
+    q"type $T[$targs1, $targs2] = $t" ≈ TypeDef(Modifiers(), T, targs1 ++ targs2, t)
+  }
+
+  property("splice tparams into typedef (3)") = forAll { (T: TypeName, targ: TypeDef, targs: List[TypeDef], t: Tree) =>
+    q"type $T[$targ, $targs] = $t" ≈ TypeDef(Modifiers(), T, targ :: targs, t)
+  }
+
+  property("splice typename into typedef with default bounds") = forAll { (T1: TypeName, T2: TypeName, t: Tree) =>
+    q"type $T1[$T2 >: Any <: Nothing] = $t" ≈
+      TypeDef(Modifiers(), T1, List(TypeDef(ellipsis, T2, List(), TypeBoundsTree(ellipsis, ellipsis))), t)
+  }
+
+  property("splice targs into classdef") = forAll { (C: TypeName, targs: List[TypeDef], t: Tree) =>
+    q"class $C[$targs]" ≈ ellipsis
+  }
 
   property("splice type names into compound type tree") = forAll { (T: TypeName, A: TypeName, B: TypeName) =>
     q"type $T = $A with $B" ≈
@@ -222,5 +239,13 @@ object Test extends Properties("quasiquotes")
         Modifiers(), T1, List(),
         AppliedTypeTree(Ident(T2), args))
   }
+
+  // --- NEGATIVE TESTS TEMPLATES
+
+  // // not allowed, T2 should be a name
+  // property("splice typename into typedef with default bounds") = forAll { (T1: TypeName, T2: TypeDef, t: Tree) =>
+  //   q"type $T1[$T2 >: _root_.scala.Any <: _root_.scala.Nothing] = $t" ≈
+  //     TypeDef(Modifiers(), T1, List(T2), t)
+  // }
 }
 
