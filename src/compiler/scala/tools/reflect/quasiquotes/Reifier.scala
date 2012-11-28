@@ -4,6 +4,7 @@ package quasiquotes
 import scala.reflect.reify.{Reifier => ReflectReifier}
 import scala.reflect.macros
 
+
 abstract class Reifier extends ReflectReifier with Types {
   import global._
 

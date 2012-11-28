@@ -7,21 +7,71 @@ import scala.reflect.macros
 import scala.collection.mutable
 
 
-abstract class UnapplyMacro {//with Types {
+abstract class UnapplyMacro extends Types {
   val ctx: macros.Context
+  val g = ctx.universe.asInstanceOf[Global]
   import ctx.universe._
+  import ctx.universe.Flag._
 
-  print(ctx.macroApplication)
+  val currentUniverse: ctx.universe.type = ctx.universe
+  val currentMirror = ctx.mirror
 
-  // val currentUniverse: ctx.universe.type = ctx.universe
-  // val currentMirror = ctx.mirror
-  // val universe =
+  val (universe, parts) =
+    ctx.macroApplication match {
+      case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), _) =>
+        val parts = parts0.map(_ match {
+          case Literal(Constant(s: String)) => s
+          case _ => throw new Exception("")
+        })
+        (universe, parts)
+      case _ => throw new Exception("")
+    }
 
-  // val selector = Ident(newTermName("<unapply-selector>"))
-  // selector.setType(c.typeOf[treeType])
-  // Apply(Apply(Select(Ident(name), newTermName("unapply")), List(universe)), List(selector))
+  if(!(parts.length >= 1 && parts.length <= 23))
+    throw new Exception("Inapropriate amount of quasiquote params.")
 
-  val result = EmptyTree
+  val name = newTermName(Const.prefix + "matcher$" + randomUUID().toString.replace("-", ""))
+
+  val unapplyBody =
+    // if(parts.length == 1)
+    //   Apply(Select(Ident("tree"), "equalsStructure"), List(
+    //     reifyTree(tree)
+    //   ))
+
+    //   Apply(Ident(newTermName("Some")), List(Ident(newTermName("tree"))))
+    EmptyTree
+
+  val unapplyResultType: Tree =
+    if(parts.length == 1)
+      TypeTree(typeOf[Boolean])
+    else if(parts.length == 2)
+      TypeTree(optionTreeType)
+    else //if(parts.length <= 23)
+      TypeTree(ctx.mirror.staticClass("scala.Tuple" + (parts.length - 1)).toType)
+
+  val unapply =
+    DefDef(
+      Modifiers(), newTermName("unapply"), List(),
+      List(
+        List(ValDef(Modifiers(PARAM), newTermName("universe"), TypeTree(universeType), EmptyTree)),
+        List(ValDef(Modifiers(PARAM), newTermName("tree"), TypeTree(treeType), EmptyTree))),
+      unapplyResultType,
+      unapplyBody)
+
+  val moduledef =
+    ModuleDef(Modifiers(), name, Template(
+      List(Select(Ident(newTermName("scala")), newTypeName("AnyRef"))),
+      emptyValDef,
+      List(
+        DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List())), Literal(Constant(())))),
+        unapply)))
+
+  ctx.introduceTopLevel(moduledef)
+
+  val selector = Ident(newTermName("<unapply-selector>"))
+  selector.setType(treeType)
+
+  val result = Apply(Apply(Select(Ident(name), newTermName("unapply")), List(universe)), List(selector))
 }
 
 // abstract class QuasiQuoteQ extends QuasiQuoteConst {
