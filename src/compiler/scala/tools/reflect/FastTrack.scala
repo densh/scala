@@ -36,7 +36,8 @@ trait FastTrack {
     ApiUniverseReify bindTo { case (c, Apply(TypeApply(_, List(tt)), List(expr))) => c.materializeExpr(c.prefix.tree, EmptyTree, expr) }
     ReflectRuntimeCurrentMirror bindTo { case (c, _) => scala.reflect.runtime.Macros.currentMirror(c).tree }
     StringContext_f bindTo { case (c, app@Apply(Select(Apply(_, parts), _), args)) => c.macro_StringInterpolation_f(parts, args, app.pos) }
-    QuasiQuoteClass_q_apply bindTo { case (c, _) => (new { val ctx: c.type = c } with QuasiQuoteApply).result }
+    QuasiQuoteClass_q_apply bindTo { case (c, _) => (new { val ctx: c.type = c } with quasiquotes.ApplyMacro).result }
+    QuasiQuoteClass_q_unapply bindTo { case (c, _) => (new { val ctx: c.type = c } with quasiquotes.UnapplyMacro).result }
     registry
   }
 }
