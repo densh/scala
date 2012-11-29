@@ -21,6 +21,7 @@ trait Types {
   lazy val listTreeType = appliedType(listType, List(treeType))
   lazy val typeDefListType = appliedType(listType, List(typeDefType))
   lazy val optionTreeType = appliedType(optionType, List(treeType))
+  lazy val optionNameType = appliedType(optionType, List(nameType))
 
   def memberType(thistype: Type, name: String): Type = {
     val sym = thistype.typeSymbol.typeSignature.member(newTypeName(name))
