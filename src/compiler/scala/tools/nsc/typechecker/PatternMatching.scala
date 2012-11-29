@@ -417,7 +417,17 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
             // (the prefix of the argument passed to the unapply must equal the prefix of the type of the binder)
             val treeMaker = TypeTestTreeMaker(patBinder, patBinder, extractor.paramType, extractor.paramType)(pos, extractorArgTypeTest = true)
             (List(treeMaker), treeMaker.nextBinder)
-          } else (Nil, patBinder)
+          } else {
+            // no type test needed, but the tree maker relies on `patBinderOrCasted` having type `extractor.paramType` (and not just some type compatible with it)
+            // SI-6624 shows this is necessary because apparently patBinder may have an unfortunate type (.decls don't have the case field accessors)
+            // TODO: get to the bottom of this -- I assume it happens when type checking infers a weird type for an unapply call
+            // by going back to the parameterType for the extractor call we get a saner type, so let's just do that for now
+            /* TODO: uncomment when `settings.developer` and `devWarning` become available
+              if (settings.developer.value && !(patBinder.info =:= extractor.paramType))
+                devWarning(s"resetting info of $patBinder: ${patBinder.info} to ${extractor.paramType}")
+            */
+            (Nil, patBinder setInfo extractor.paramType)
+          }
 
         withSubPats(typeTestTreeMaker :+ extractor.treeMaker(patBinderOrCasted, pos), extractor.subBindersAndPatterns: _*)
       }
@@ -1143,7 +1153,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
 
           // ExplicitOuter replaces `Select(q, outerSym) OBJ_EQ expectedPrefix` by `Select(q, outerAccessor(outerSym.owner)) OBJ_EQ expectedPrefix`
           // if there's an outer accessor, otherwise the condition becomes `true` -- TODO: can we improve needsOuterTest so there's always an outerAccessor?
-          val outer = expectedTp.typeSymbol.newMethod(vpmName.outer) setInfo expectedTp.prefix setFlag SYNTHETIC | ARTIFACT
+          val outer = expectedTp.typeSymbol.newMethod(vpmName.outer, newFlags = SYNTHETIC | ARTIFACT) setInfo expectedTp.prefix
 
           (Select(codegen._asInstanceOf(testedBinder, expectedTp), outer)) OBJ_EQ expectedOuter
         }
@@ -1405,7 +1415,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
 
     // assert(owner ne null); assert(owner ne NoSymbol)
     def freshSym(pos: Position, tp: Type = NoType, prefix: String = "x") =
-      NoSymbol.newTermSymbol(freshName(prefix), pos) setInfo tp
+      NoSymbol.newTermSymbol(freshName(prefix), pos, newFlags = SYNTHETIC) setInfo tp
 
     def newSynthCaseLabel(name: String) =
       NoSymbol.newLabel(freshName(name), NoPosition) setFlag treeInfo.SYNTH_CASE_FLAGS
@@ -3601,7 +3611,7 @@ trait PatternMatching extends Transform with TypingTransformers with ast.TreeDSL
        */
       def matcher(scrut: Tree, scrutSym: Symbol, restpe: Type)(cases: List[Casegen => Tree], matchFailGen: Option[Tree => Tree]): Tree = {
         val matchEnd = newSynthCaseLabel("matchEnd")
-        val matchRes = NoSymbol.newValueParameter(newTermName("x"), NoPosition, SYNTHETIC) setInfo restpe.withoutAnnotations
+        val matchRes = NoSymbol.newValueParameter(newTermName("x"), NoPosition, newFlags = SYNTHETIC) setInfo restpe.withoutAnnotations
         matchEnd setInfo MethodType(List(matchRes), restpe)
 
         def newCaseSym = newSynthCaseLabel("case") setInfo MethodType(Nil, restpe)

@@ -79,7 +79,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     def isImplementationArtifact: Boolean = (this hasFlag BRIDGE) || (this hasFlag VBRIDGE) || (this hasFlag ARTIFACT)
     def isJava: Boolean = isJavaDefined
     def isVal: Boolean = isTerm && !isModule && !isMethod && !isMutable
-    def isVar: Boolean = isTerm && !isModule && !isMethod && isMutable
+    def isVar: Boolean = isTerm && !isModule && !isMethod && !isLazy && isMutable
 
     def newNestedSymbol(name: Name, pos: Position, newFlags: Long, isClass: Boolean): Symbol = name match {
       case n: TermName => newTermSymbol(n, pos, newFlags)
@@ -423,9 +423,9 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
      *  failure to the point when that name is used for something, which is
      *  often to the point of never.
      */
-    def newStubSymbol(name: Name): Symbol = name match {
-      case n: TypeName  => new StubClassSymbol(this, n)
-      case _            => new StubTermSymbol(this, name.toTermName)
+    def newStubSymbol(name: Name, missingMessage: String): Symbol = name match {
+      case n: TypeName  => new StubClassSymbol(this, n, missingMessage)
+      case _            => new StubTermSymbol(this, name.toTermName, missingMessage)
     }
 
     @deprecated("Use the other signature", "2.10.0")
@@ -742,6 +742,9 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     def migrationVersion    = getAnnotation(MigrationAnnotationClass) flatMap { _.stringArg(1) }
     def elisionLevel        = getAnnotation(ElidableMethodClass) flatMap { _.intArg(0) }
     def implicitNotFoundMsg = getAnnotation(ImplicitNotFoundClass) flatMap { _.stringArg(0) }
+
+    def isCompileTimeOnly       = hasAnnotation(CompileTimeOnlyAttr)
+    def compileTimeOnlyMessage  = getAnnotation(CompileTimeOnlyAttr) flatMap (_ stringArg 0)
 
     /** Is this symbol an accessor method for outer? */
     final def isOuterAccessor = {
@@ -1213,6 +1216,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
         }
         val current = phase
         try {
+          assertCorrectThread()
           phase = phaseOf(infos.validFrom)
           tp.complete(this)
         } finally {
@@ -1283,6 +1287,7 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
           infos = infos.prev
 
         if (validTo < curPeriod) {
+          assertCorrectThread()
           // adapt any infos that come from previous runs
           val current = phase
           try {
@@ -1343,6 +1348,9 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
         }
       }
     }
+
+    /** Raises a `MissingRequirementError` if this symbol is a `StubSymbol` */
+    def failIfStub() {}
 
     /** Initialize the symbol */
     final def initialize: this.type = {
@@ -3100,14 +3108,18 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     )
   }
   trait StubSymbol extends Symbol {
-    protected def stubWarning = {
-      val from = if (associatedFile == null) "" else s" - referenced from ${associatedFile.canonicalPath}"
-      s"$kindString $nameString$locationString$from (a classfile may be missing)"
-    }
+    protected def missingMessage: String
+
+    /** Fail the stub by throwing a [[scala.reflect.internal.MissingRequirementError]]. */
+    override final def failIfStub() = {MissingRequirementError.signal(missingMessage)} //
+
+    /** Fail the stub by reporting an error to the reporter, setting the IS_ERROR flag
+      * on this symbol, and returning the dummy value `alt`.
+      */
     private def fail[T](alt: T): T = {
       // Avoid issuing lots of redundant errors
       if (!hasFlag(IS_ERROR)) {
-        globalError(s"bad symbolic reference to " + stubWarning)
+        globalError(missingMessage)
         if (settings.debug.value)
           (new Throwable).printStackTrace
 
@@ -3124,12 +3136,10 @@ trait Symbols extends api.Symbols { self: SymbolTable =>
     override def rawInfo         = fail(NoType)
     override def companionSymbol = fail(NoSymbol)
 
-    locally {
-      debugwarn("creating stub symbol for " + stubWarning)
-    }
+    debugwarn("creating stub symbol to defer error: " + missingMessage)
   }
-  class StubClassSymbol(owner0: Symbol, name0: TypeName) extends ClassSymbol(owner0, owner0.pos, name0) with StubSymbol
-  class StubTermSymbol(owner0: Symbol, name0: TermName) extends TermSymbol(owner0, owner0.pos, name0) with StubSymbol
+  class StubClassSymbol(owner0: Symbol, name0: TypeName, protected val missingMessage: String) extends ClassSymbol(owner0, owner0.pos, name0) with StubSymbol
+  class StubTermSymbol(owner0: Symbol, name0: TermName, protected val missingMessage: String) extends TermSymbol(owner0, owner0.pos, name0) with StubSymbol
 
   trait FreeSymbol extends Symbol {
     def origin: String

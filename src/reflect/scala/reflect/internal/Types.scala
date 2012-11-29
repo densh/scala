@@ -146,6 +146,7 @@ trait Types extends api.Types { self: SymbolTable =>
     /** Undo all changes to constraints to type variables upto `limit`. */
     //OPT this method is public so we can do `manual inlining`
     def undoTo(limit: UndoPairs) {
+      assertCorrectThread()
       while ((log ne limit) && log.nonEmpty) {
         val (tv, constr) = log.head
         tv.constr = constr
@@ -322,6 +323,18 @@ trait Types extends api.Types { self: SymbolTable =>
     def isSpliceable = {
       this.isInstanceOf[TypeRef] && typeSymbol.isAbstractType && !typeSymbol.isExistential
     }
+  }
+
+  /** Same as a call to narrow unless existentials are visible
+   *  after widening the type. In that case, narrow from the widened
+   *  type instead of the proxy. This gives buried existentials a
+   *  chance to make peace with the other types. See SI-5330.
+   */
+  private def narrowForFindMember(tp: Type): Type = {
+    val w = tp.widen
+    // Only narrow on widened type when we have to -- narrow is expensive unless the target is a singleton type.
+    if ((tp ne w) && containsExistential(w)) w.narrow
+    else tp.narrow
   }
 
   /** The base class for all types */
@@ -1078,7 +1091,7 @@ trait Types extends api.Types { self: SymbolTable =>
                          (other ne sym) &&
                          ((other.owner eq sym.owner) ||
                           (flags & PRIVATE) != 0 || {
-                             if (self eq null) self = this.narrow
+                             if (self eq null) self = narrowForFindMember(this)
                              if (symtpe eq null) symtpe = self.memberType(sym)
                              !(self.memberType(other) matches symtpe)
                           })}) {
@@ -1160,7 +1173,7 @@ trait Types extends api.Types { self: SymbolTable =>
                   if ((member ne sym) &&
                     ((member.owner eq sym.owner) ||
                       (flags & PRIVATE) != 0 || {
-                        if (self eq null) self = this.narrow
+                        if (self eq null) self = narrowForFindMember(this)
                         if (membertpe eq null) membertpe = self.memberType(member)
                         !(membertpe matches self.memberType(sym))
                       })) {
@@ -1175,7 +1188,7 @@ trait Types extends api.Types { self: SymbolTable =>
                     (other ne sym) &&
                       ((other.owner eq sym.owner) ||
                         (flags & PRIVATE) != 0 || {
-                          if (self eq null) self = this.narrow
+                          if (self eq null) self = narrowForFindMember(this)
                           if (symtpe eq null) symtpe = self.memberType(sym)
                           !(self.memberType(other) matches symtpe)
                              })}) {
@@ -1385,7 +1398,12 @@ trait Types extends api.Types { self: SymbolTable =>
   /** A class for this-types of the form <sym>.this.type
    */
   abstract case class ThisType(sym: Symbol) extends SingletonType with ThisTypeApi {
-    assert(sym.isClass, sym)
+    if (!sym.isClass) {
+      // SI-6640 allow StubSymbols to reveal what's missing from the classpath before we trip the assertion.
+      sym.failIfStub()
+      assert(false, sym)
+    }
+
     //assert(sym.isClass && !sym.isModuleClass || sym.isRoot, sym)
     override def isTrivial: Boolean = sym.isPackageClass
     override def isNotNull = true
