@@ -13,13 +13,6 @@ abstract class UnapplyMacro extends Types {
   import ctx.universe._
   import ctx.universe.Flag._
 
-  var binds = {
-    val CaseDef(Apply(_, binds0), _, _) = ctx.callsiteTyper.context.tree
-    binds0.map(_.asInstanceOf[Bind].duplicate)
-  }
-
-  if(Const.debug) println(s"reified tree\n=${binds}\n=${showRaw(binds)}\n")
-
   val (universe, parts) =
     ctx.macroApplication match {
       case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), _) =>
@@ -34,74 +27,86 @@ abstract class UnapplyMacro extends Types {
   if(!(parts.length >= 1 && parts.length <= 23))
     throw new Exception("Inapropriate amount of quasiquote params.")
 
-  val unapplySelector = Ident(newTermName("<unapply-selector>"))
+  val unapplySelector = Ident(TermName("<unapply-selector>"))
   unapplySelector.setType(treeType)
 
-  val (code, subsmap) = {
+  val (code, placeholders) = {
     val sb = new StringBuilder(parts.head)
-    val subsmap = mutable.Map[String, Tree]()
-    for((tree, part) <- binds.zip(parts.tail)) {
+    val placeholders = mutable.ListBuffer[String]()
+    for(part <- parts.tail) {
       val placeholder = ctx.fresh(Const.prefix)
       sb.append(placeholder)
       sb.append(part)
-      subsmap(placeholder) = tree
+      placeholders += placeholder
     }
-    (sb.toString, subsmap.toMap)
+    (sb.toString, placeholders.toList)
   }
 
-  if(Const.debug) println(s"subsmap\n=${showRaw(subsmap.toList)}\n")
-
   val tree = parse(code)
-  val reifiedTree = reifyTree(tree)
+  val (reifiedTree, correspondingTypes) = reifyTree(tree)
 
+  if(Const.debug) println(s"\ncorresponding types=\n$correspondingTypes\n")
   if(Const.debug) println(s"\ncode to parse=\n$code\n")
   if(Const.debug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
   if(Const.debug) println(s"reified tree\n=${reifiedTree}\n=${showRaw(reifiedTree)}\n")
 
-  val tuple = Apply(Ident("Tuple" + (binds.length)), binds.map(b => Ident(b.name)).toList)
-  val caseBody = Apply(Ident("Some"), List(tuple))
+  val caseBody: Tree =
+    if(placeholders.length == 0)
+      Literal(Constant(true))
+    else if(placeholders.length == 1)
+      Apply(Ident(TermName("Some")), List(Ident(TermName(placeholders(0)))))
+    else
+      Apply(
+        Ident(TermName("Some")),
+        List(Apply(
+          Ident(TermName("Tuple" + placeholders.length)),
+          placeholders.map(p => Ident(TermName(p))))))
 
   val unapplyBody =
-    Match(Ident(newTermName("tree")), List(CaseDef(reifiedTree, EmptyTree, caseBody)))
+    Block(
+      List(Import(Ident(TermName("$u")), List(ImportSelector(nme.WILDCARD, 0, null, 0)))),
+      Match(Ident(TermName("tree")), List(CaseDef(reifiedTree, EmptyTree, caseBody))))
 
-  val localTreeType = Select(Ident(newTermName("$u")), newTypeName("Tree"))
+  val localTreeType = Select(Ident(TermName("$u")), TypeName("Tree"))
 
-  val unapplyResultType: Tree = {
-    val tuple = Ident(newTypeName("Tuple" + binds.length))
-    val treetuple = AppliedTypeTree(tuple, binds.map(b => localTreeType))
-    val optiontreetuple = AppliedTypeTree(Ident(newTypeName("Option")), List(treetuple))
-    optiontreetuple
-  }
+  val unapplyResultType: Tree =
+    if(placeholders.length == 0){
+      Ident(TypeName("Boolean"))
+    } else if(placeholders.length == 1){
+      AppliedTypeTree(Ident(TypeName("Option")), List(correspondingTypes(placeholders(0))))
+    } else {
+      val tuple = Ident(TypeName("Tuple" + placeholders.length))
+      val treetuple = AppliedTypeTree(tuple, placeholders.map(p => correspondingTypes(p)))
+      val optiontreetuple = AppliedTypeTree(Ident(TypeName("Option")), List(treetuple))
+      optiontreetuple
+    }
 
-  //val apiUniverseType = TypeTree(ctx.mirror.staticClass("scala.reflect.api.Universe").toType)
-  //TypeTree(ctx.universe.definitions.ApiUniverseClass.toType.asInstanceOf[Type])
-
-  val apiUniverseType = Select(Select(Select(Ident(newTermName("scala")), newTermName("reflect")), newTermName("api")), newTypeName("Universe"))
+  val apiUniverseType = Select(Select(Select(Ident(TermName("scala")), TermName("reflect")), TermName("api")), TypeName("Universe"))
 
   val unapplyMethod =
     DefDef(
-      Modifiers(), newTermName("unapply"), List(),
+      Modifiers(), TermName("unapply"), List(),
       List(
-        List(ValDef(Modifiers(PARAM), newTermName("$u"), apiUniverseType, EmptyTree)),
-        List(ValDef(Modifiers(PARAM), newTermName("tree"), localTreeType, EmptyTree))),
+        List(ValDef(Modifiers(PARAM), TermName("$u"), apiUniverseType, EmptyTree)),
+        List(ValDef(Modifiers(PARAM), TermName("tree"), localTreeType, EmptyTree))),
       unapplyResultType,
       unapplyBody)
 
-  val moduleName = newTermName(Const.prefix + "matcher$" + randomUUID().toString.replace("-", ""))
+  val moduleName = TermName(Const.prefix + "matcher$" + randomUUID().toString.replace("-", ""))
 
   val moduleDef =
     ModuleDef(Modifiers(), moduleName, Template(
-      List(Select(Ident(newTermName("scala")), newTypeName("AnyRef"))),
+      List(Select(Ident(TermName("scala")), TypeName("AnyRef"))),
       emptyValDef,
       List(
         DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List())), Literal(Constant(())))),
         unapplyMethod)))
 
-  println(s"\n\nMODULEDEF\n${showRaw(moduleDef, printTypes=true, printIds=true)}")
+  if(Const.debug) println(s"\nmoduledef\n=${showRaw(moduleDef, printTypes=true, printIds=true)}\n=$moduleDef\n")
 
   ctx.introduceTopLevel(moduleDef)
 
-  val result = Apply(Apply(Select(Ident(moduleName), newTermName("unapply")), List(universe)), List(unapplySelector))
+  val result = Apply(Apply(Select(Ident(moduleName), TermName("unapply")), List(universe)), List(unapplySelector))
 
   def parse(code: String) = {
     val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
@@ -110,18 +115,30 @@ abstract class UnapplyMacro extends Types {
 
   def reifyTree(tree: Tree) = {
     val ctx0 = ctx
-    val subsmap0 = subsmap
+    val placeholders0 = placeholders
     val universe0 = universe
     val reifier = new {
       val ctx: ctx0.type = ctx0
       val global: ctx0.universe.type = ctx0.universe
       val universe = universe0.asInstanceOf[global.Tree]
-      val subsmap: Map[String, global.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[global.Tree])
+      val placeholders: Set[String] = placeholders0.toSet
       val mirror = EmptyTree.asInstanceOf[global.Tree]
       val typer = null
       val reifee = null
       val concrete = false
     } with UnapplyReifier
-    reifier.reifyTree(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
+    val reifiedtree = reifier.reifyTreeCore(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
+    val correspondingTypes = reifier.correspondingTypes.map { pair =>
+      val tpe = pair._2.asInstanceOf[global.Type]
+      if(tpe =:= termNameType)
+        (pair._1, Select(Ident(TermName("$u")), TypeName("TermName")))
+      else if(tpe =:= typeNameType)
+        (pair._1, Select(Ident(TermName("$u")), TypeName("TypeName")))
+      else if(tpe =:= treeType)
+        (pair._1, Select(Ident(TermName("$u")), TypeName("Tree")))
+      else
+        throw new Exception("Unexpected reified type.")
+    }
+    (reifiedtree, correspondingTypes)
   }
 }

@@ -13,6 +13,8 @@ trait Types {
 
   lazy val universeType = universe.tpe
   lazy val nameType = memberType(universeType, "Name")
+  lazy val termNameType = memberType(universeType, "TypeName")
+  lazy val typeNameType = memberType(universeType, "TermName")
   lazy val treeType = memberType(universeType, "Tree")
   lazy val typeDefType = memberType(universeType, "TypeDef")
   lazy val liftableType = rootMirror.staticClass("scala.reflect.api.Liftable").toType

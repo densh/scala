@@ -68,7 +68,7 @@ abstract class ApplyMacro {
       val reifee = null
       val concrete = false
     } with ApplyReifier
-    reifier.reifyTree(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
+    reifier.reifyTreeCore(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
   }
 
   def wrap(t: Tree) =

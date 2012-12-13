@@ -101,38 +101,20 @@ abstract class ApplyReifier extends ReflectReifier with Types {
     }
   }
 
-  override def reifyTree(tree: Tree): Tree = tree match {
+  override def reifyTreeCore(tree: Tree): Tree = tree match {
     case Ident(SubsToTree(tree)) => tree
     case Ident(SubsToLiftable(tree)) => tree
-    // case Block(List(), SubsToListTree(listtree)) =>
-    //   Block(Select(listtree, newTermName("init")), Select(listtree, newTermName("last")))
-    case emptyValDef: AnyRef if emptyValDef eq ctx.universe.emptyValDef =>
-      mirrorBuildSelect("emptyValDef")
-    case EmptyTree =>
-      reifyMirrorObject(EmptyTree)
-    case Literal(const @ Constant(_)) =>
-      mirrorCall("Literal", reifyProduct(const))
-    case Import(tree, selectors) =>
-      val args = mkList(selectors.map(s => reifyProduct(s)))
-      mirrorCall("Import", reify(tree), args)
-    case _ =>
-      reifyProduct(tree)
+    case _ => super.reifyTreeCore(tree)
   }
 
-  override def reifyName(name: Name): Tree = {
-    if(!subsmap.contains(name.encoded)) {
-      val factory =
-        if (name.isTypeName)
-          "newTypeName"
-        else
-          "newTermName"
-      mirrorCall(factory, Literal(Constant(name.toString)))
-    } else
+  override def reifyName(name: Name): Tree =
+    if(!subsmap.contains(name.encoded))
+      super.reifyName(name)
+    else
       name match {
         case SubsToNameTree(tree) => tree
         case _ => throw new Exception(s"Name expected but ${subsmap(name.encoded).tpe} found")
-      }
-  }
+    }
 
   override def reifyList(xs: List[Any]): Tree =
     Select(

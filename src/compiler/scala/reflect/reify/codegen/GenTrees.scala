@@ -41,28 +41,7 @@ trait GenTrees {
     // the first prototype of reification reified all types and symbols for all trees => this quickly became unyieldy
     // the second prototype reified external types, but avoided reifying local ones => this created an ugly irregularity
     // current approach is uniform and compact
-    var rtree = tree match {
-      case global.EmptyTree =>
-        reifyMirrorObject(EmptyTree)
-      case global.emptyValDef =>
-        mirrorSelect(nme.emptyValDef)
-      case global.pendingSuperCall =>
-        mirrorSelect(nme.pendingSuperCall)
-      case FreeDef(_, _, _, _, _) =>
-        reifyNestedFreeDef(tree)
-      case FreeRef(_, _) =>
-        reifyNestedFreeRef(tree)
-      case BoundTerm(tree) =>
-        reifyBoundTerm(tree)
-      case BoundType(tree) =>
-        reifyBoundType(tree)
-      case Literal(const @ Constant(_)) =>
-        mirrorCall(nme.Literal, reifyProduct(const))
-      case Import(expr, selectors) =>
-        mirrorCall(nme.Import, reify(expr), mkList(selectors map reifyProduct))
-      case _ =>
-        reifyProduct(tree)
-    }
+    var rtree = reifyTreeCore(tree)
 
     // usually we don't reify symbols/types, because they can be re-inferred during subsequent reflective compilation
     // however, reification of AnnotatedTypes is special. see ``reifyType'' to find out why.
@@ -76,6 +55,29 @@ trait GenTrees {
     }
 
     rtree
+  }
+
+  def reifyTreeCore(tree: Tree) = tree match {
+    case global.EmptyTree =>
+      reifyMirrorObject(EmptyTree)
+    case global.emptyValDef =>
+      mirrorSelect(nme.emptyValDef)
+    case global.pendingSuperCall =>
+      mirrorSelect(nme.pendingSuperCall)
+    case FreeDef(_, _, _, _, _) =>
+      reifyNestedFreeDef(tree)
+    case FreeRef(_, _) =>
+      reifyNestedFreeRef(tree)
+    case BoundTerm(tree) =>
+      reifyBoundTerm(tree)
+    case BoundType(tree) =>
+      reifyBoundType(tree)
+    case Literal(const @ Constant(_)) =>
+      mirrorCall(nme.Literal, reifyProduct(const))
+    case Import(expr, selectors) =>
+      mirrorCall(nme.Import, reify(expr), mkList(selectors map reifyProduct))
+    case _ =>
+      reifyProduct(tree)
   }
 
   def reifyModifiers(m: global.Modifiers) =
