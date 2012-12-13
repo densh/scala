@@ -1,27 +1,25 @@
 package scala.tools.reflect
 package quasiquotes
 
-import scala.reflect.api.Universe
+import scala.tools.nsc.Global
 
 
 trait Types {
 
-  val currentUniverse: Universe
-  import currentUniverse._
-  val currentMirror: Mirror
-  val universe: Tree
+  val global: Global
+  val universe: global.Tree
+  import global._
+  import global.definitions._
 
   lazy val universeType = universe.tpe
   lazy val nameType = memberType(universeType, "Name")
   lazy val treeType = memberType(universeType, "Tree")
   lazy val typeDefType = memberType(universeType, "TypeDef")
-  lazy val liftableType = currentMirror.staticClass("scala.reflect.api.Liftable").toType
-  lazy val listType = currentMirror.staticClass("scala.collection.immutable.List").toType
-  lazy val optionType = currentMirror.staticClass("scala.Option").toType
-  lazy val listTreeType = appliedType(listType, List(treeType))
-  lazy val typeDefListType = appliedType(listType, List(typeDefType))
-  lazy val optionTreeType = appliedType(optionType, List(treeType))
-  lazy val optionNameType = appliedType(optionType, List(nameType))
+  lazy val liftableType = rootMirror.staticClass("scala.reflect.api.Liftable").toType
+  lazy val listTreeType = appliedType(ListClass.toType, List(treeType))
+  lazy val typeDefListType = appliedType(ListClass.toType, List(typeDefType))
+  lazy val optionTreeType = appliedType(OptionClass.toType, List(treeType))
+  lazy val optionNameType = appliedType(OptionClass.toType, List(nameType))
 
   def memberType(thistype: Type, name: String): Type = {
     val sym = thistype.typeSymbol.typeSignature.member(newTypeName(name))

@@ -5,14 +5,11 @@ import scala.reflect.reify.{Reifier => ReflectReifier}
 import scala.reflect.macros
 
 
-abstract class Reifier extends ReflectReifier with Types {
+abstract class ApplyReifier extends ReflectReifier with Types {
   import global._
 
   val subsmap: Map[String, Tree]
   val ctx: macros.Context
-
-  val currentUniverse: global.type = global
-  val currentMirror = ctx.mirror.asInstanceOf[global.Mirror]
 
   object SubsToLiftable {
 
@@ -51,8 +48,11 @@ abstract class Reifier extends ReflectReifier with Types {
       subsmap.get(name.encoded).flatMap { tree =>
         if(tree.tpe <:< nameType)
           Some(tree)
-        else
+        else {
+          println("not a name")
+          println(showRaw(tree.tpe, printIds=true, printTypes=true))
           None
+        }
       }
   }
 
@@ -111,12 +111,12 @@ abstract class Reifier extends ReflectReifier with Types {
     case EmptyTree =>
       reifyMirrorObject(EmptyTree)
     case Literal(const @ Constant(_)) =>
-      mirrorCall("Literal", reifyProduct(const.asInstanceOf[Product]))
+      mirrorCall("Literal", reifyProduct(const))
     case Import(tree, selectors) =>
-      val args = mkList(selectors.map(s => reifyProduct(s.asInstanceOf[Product])))
+      val args = mkList(selectors.map(s => reifyProduct(s)))
       mirrorCall("Import", reify(tree), args)
     case _ =>
-      reifyProduct(tree.asInstanceOf[Product])
+      reifyProduct(tree)
   }
 
   override def reifyName(name: Name): Tree = {

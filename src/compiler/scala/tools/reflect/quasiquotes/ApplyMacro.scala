@@ -2,15 +2,13 @@ package scala.tools.reflect
 package quasiquotes
 
 import scala.tools.nsc.Global
-import scala.reflect.macros
+import scala.reflect.macros.runtime.Context
 import scala.collection.mutable
 
 
 abstract class ApplyMacro {
-
-  val ctx: macros.Context
+  val ctx: Context
   import ctx.universe._
-  val g = ctx.universe.asInstanceOf[Global]
 
   val (universe, args, parts) =
     ctx.macroApplication match {
@@ -52,9 +50,8 @@ abstract class ApplyMacro {
   if(Const.debug) println(s"result tree\n=${result}\n=${showRaw(result)}\n")
 
   def parse(code: String) = {
-    val parser = new { val global: g.type = g } with Parser
-    val tree = parser.parse(code)
-    tree.asInstanceOf[ctx.universe.Tree]
+    val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
+    parser.parse(code)
   }
 
   def reifyTree(tree: Tree) = {
@@ -62,22 +59,22 @@ abstract class ApplyMacro {
     val subsmap0 = subsmap
     val universe0 = universe
     val reifier = new {
-      val global: g.type = g
-      val typer: g.analyzer.Typer = null
-      val universe: g.Tree = universe0.asInstanceOf[g.Tree]
-      val mirror: g.Tree = g.EmptyTree
-      val reifee: Any = null
-      val concrete: Boolean = false
-      val subsmap: Map[String, g.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[g.Tree])
       val ctx: ctx0.type = ctx0
-    } with Reifier
-    reifier.reifyTree(tree.asInstanceOf[g.Tree]).asInstanceOf[ctx.universe.Tree]
+      val global: ctx0.universe.type = ctx0.universe
+      val subsmap: Map[String, global.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[global.Tree])
+      val universe = universe0.asInstanceOf[global.Tree]
+      val mirror = global.EmptyTree
+      val typer = null
+      val reifee = null
+      val concrete = false
+    } with ApplyReifier
+    reifier.reifyTree(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
   }
 
   def wrap(t: Tree) =
     Block(
       List(ValDef(Modifiers(),
-        g.nme.UNIVERSE_SHORT.asInstanceOf[TermName],
+        nme.UNIVERSE_SHORT,
         SingletonTypeTree(universe),
         universe)),
       t)

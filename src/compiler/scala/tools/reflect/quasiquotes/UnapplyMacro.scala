@@ -3,31 +3,18 @@ package quasiquotes
 
 import java.util.UUID.randomUUID
 import scala.tools.nsc.Global
+import scala.reflect.macros.runtime.Context
 import scala.collection.mutable
-import scala.reflect.reify.{Reifier => ReflectReifier}
-import scala.reflect.macros
-
-
 
 
 abstract class UnapplyMacro extends Types {
-  val ctx: macros.Context
-  val g = ctx.universe.asInstanceOf[Global]
+  val ctx: Context
+  val global: ctx.universe.type = ctx.universe
   import ctx.universe._
   import ctx.universe.Flag._
 
-  class MyBind(name: Name, tree: Tree) extends g.Bind(name.asInstanceOf[g.Name], tree.asInstanceOf[g.Tree]) {
-    override def hashCode = throw new Exception("i hate you")
-    override def equals(other: Any) = throw new Exception("i hate you")
-  }
-
-
-  val currentUniverse: ctx.universe.type = ctx.universe
-  val currentMirror = ctx.mirror
-
   var binds = {
-    val contextTree = ctx.asInstanceOf[scala.reflect.macros.runtime.Context].callsiteTyper.context.tree.asInstanceOf[Tree]
-    val CaseDef(Apply(_, binds0), _, _) = contextTree
+    val CaseDef(Apply(_, binds0), _, _) = ctx.callsiteTyper.context.tree
     binds0.map(_.asInstanceOf[Bind].duplicate)
   }
 
@@ -65,7 +52,7 @@ abstract class UnapplyMacro extends Types {
   if(Const.debug) println(s"subsmap\n=${showRaw(subsmap.toList)}\n")
 
   val tree = parse(code)
-  val reifiedTree = reifyTree(tree, subsmap)
+  val reifiedTree = reifyTree(tree)
 
   if(Const.debug) println(s"\ncode to parse=\n$code\n")
   if(Const.debug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
@@ -87,9 +74,9 @@ abstract class UnapplyMacro extends Types {
   }
 
   //val apiUniverseType = TypeTree(ctx.mirror.staticClass("scala.reflect.api.Universe").toType)
-  //TypeTree(g.definitions.ApiUniverseClass.toType.asInstanceOf[Type])
+  //TypeTree(ctx.universe.definitions.ApiUniverseClass.toType.asInstanceOf[Type])
 
-  val apiUniverseType = TypeTree(universeType)//Select(Select(Select(Ident(newTermName("scala")), newTermName("reflect")), newTermName("api")), newTypeName("Universe"))
+  val apiUniverseType = Select(Select(Select(Ident(newTermName("scala")), newTermName("reflect")), newTermName("api")), newTypeName("Universe"))
 
   val unapplyMethod =
     DefDef(
@@ -117,87 +104,24 @@ abstract class UnapplyMacro extends Types {
   val result = Apply(Apply(Select(Ident(moduleName), newTermName("unapply")), List(universe)), List(unapplySelector))
 
   def parse(code: String) = {
-    val parser = new { val global: g.type = g } with Parser
-    val tree = parser.parse(code)
-    tree.asInstanceOf[ctx.universe.Tree]
+    val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
+    parser.parse(code)
   }
 
-  def reifyTree(tree: Tree, subsmap0: Map[String, Tree]) = {
+  def reifyTree(tree: Tree) = {
     val ctx0 = ctx
+    val subsmap0 = subsmap
     val universe0 = universe
     val reifier = new {
-      val global: g.type = g
-      val universe: g.Tree = universe0.asInstanceOf[g.Tree]
-      val subsmap: Map[String, g.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[g.Tree])
       val ctx: ctx0.type = ctx0
-      val typer: g.analyzer.Typer = null
-      val mirror: g.Tree = g.EmptyTree
-      val reifee: Any = null
-      val concrete: Boolean = false
+      val global: ctx0.universe.type = ctx0.universe
+      val universe = universe0.asInstanceOf[global.Tree]
+      val subsmap: Map[String, global.Tree] = subsmap0.map(pair => pair._1 -> pair._2.asInstanceOf[global.Tree])
+      val mirror = EmptyTree.asInstanceOf[global.Tree]
+      val typer = null
+      val reifee = null
+      val concrete = false
     } with UnapplyReifier
-    reifier.reifyTree(tree.asInstanceOf[g.Tree]).asInstanceOf[ctx.universe.Tree]
+    reifier.reifyTree(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
   }
-}
-
-
-abstract class UnapplyReifier extends ReflectReifier with Types {
-  import global._
-
-  val subsmap: Map[String, Tree]
-  val ctx: macros.Context
-
-  val currentUniverse: global.type = global
-  val currentMirror = ctx.mirror.asInstanceOf[global.Mirror]
-
-  object SubsToTree {
-    def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded)
-  }
-
-  override def reifyTree(tree: Tree): Tree = tree match {
-    case Ident(SubsToTree(tree)) => tree
-    // case Ident(SubsToLiftable(tree)) => tree
-    // case Block(List(), SubsToListTree(listtree)) =>
-    //   Block(Select(listtree, newTermName("init")), Select(listtree, newTermName("last")))
-    case emptyValDef: AnyRef if emptyValDef eq ctx.universe.emptyValDef =>
-      mirrorBuildSelect("emptyValDef")
-    case EmptyTree =>
-      reifyMirrorObject(EmptyTree)
-    case Literal(const @ Constant(_)) =>
-      mirrorCall("Literal", reifyProduct(const.asInstanceOf[Product]))
-    case Import(tree, selectors) =>
-      val args = mkList(selectors.map(s => reifyProduct(s.asInstanceOf[Product])))
-      mirrorCall("Import", reify(tree), args)
-    case _ =>
-      reifyProduct(tree.asInstanceOf[Product])
-  }
-
-  override def scalaFactoryCall(name: String, args: Tree*): Tree =
-    call("scala." + name, args: _*)
-
-  // override def reifyName(name: Name): Tree = {
-  //   if(!subsmap.contains(name.encoded)) {
-  //     val factory =
-  //       if (name.isTypeName)
-  //         "newTypeName"
-  //       else
-  //         "newTermName"
-  //     mirrorCall(factory, Literal(Constant(name.toString)))
-  //   } else
-  //     name match {
-  //       case SubsToNameTree(tree) => tree
-  //       case _ => throw new Exception(s"Name expected but ${subsmap(name.encoded).tpe} found")
-  //     }
-  // }
-
-  // override def reifyList(xs: List[Any]): Tree =
-  //   Select(
-  //     mkList(xs.map { _ match {
-  //       case SubsToTypeDef(typedef) => mkList(List(typedef))
-  //       case SubsToTypeDefList(typedefs) => typedefs
-  //       case Ident(SubsToListTree(listtree)) => listtree
-  //       case x @ _ => mkList(List(reify(x)))
-  //     }}),
-  //     newTermName("flatten"))
-
 }
