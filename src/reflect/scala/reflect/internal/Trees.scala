@@ -385,7 +385,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
   case class TypeApply(fun: Tree, args: List[Tree])
        extends GenericApply with TypeApplyApi {
 
-    assert(fun.isTerm, fun)
+    assert(fun.isTerm, showRaw(fun))
 
     override def symbol: Symbol = fun.symbol
     override def symbol_=(sym: Symbol) { fun.symbol = sym }
@@ -460,7 +460,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
   case class SelectFromTypeTree(qualifier: Tree, name: TypeName)
        extends RefTree with TypTree with SelectFromTypeTreeApi {
 
-    assert(qualifier.isType, qualifier)
+    assert(qualifier.isType, showRaw(qualifier))
   }
   object SelectFromTypeTree extends SelectFromTypeTreeExtractor
 
@@ -471,7 +471,7 @@ trait Trees extends api.Trees { self: SymbolTable =>
   case class AppliedTypeTree(tpt: Tree, args: List[Tree])
        extends TypTree with AppliedTypeTreeApi {
 
-    assert(tpt.isType, tpt)
+    assert(tpt.isType, showRaw(tpt))
 
     override def symbol: Symbol = tpt.symbol
     override def symbol_=(sym: Symbol) { tpt.symbol = sym }
@@ -972,20 +972,12 @@ trait Trees extends api.Trees { self: SymbolTable =>
 
   object emptyValDef extends ValDef(Modifiers(PRIVATE), nme.WILDCARD, TypeTree(NoType), EmptyTree) with CannotHaveAttrs
   object EmptyValDefLike extends EmptyValDefExtractor {
-    def unapply(t: Tree): Boolean = {
-      println(s"emptyValDef.this = ${showRaw(this, printIds=true)}")
-      println(s"emptyValDef.other = ${showRaw(t, printIds=true)}")
-      t == emptyValDef
-    }
+    def unapply(t: Tree): Boolean = t == emptyValDef
   }
 
   object pendingSuperCall extends Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List()) with CannotHaveAttrs
   object PendingSuperCallLike extends PendingSuperCallExtractor {
-    def unapply(t: Tree): Boolean = {
-      println(s"pendingSuperCall.this = ${showRaw(this, printIds=true)}")
-      println(s"pendingSuperCall.other = ${showRaw(t, printIds=true)}")
-      t == pendingSuperCall
-    }
+    def unapply(t: Tree): Boolean = t == pendingSuperCall
   }
 
   def DefDef(sym: Symbol, mods: Modifiers, vparamss: List[List[ValDef]], rhs: Tree): DefDef =

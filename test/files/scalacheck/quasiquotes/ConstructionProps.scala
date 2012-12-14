@@ -6,11 +6,11 @@ import Arbitrary._
 import scala.reflect.runtime.universe._
 import Flag._
 
-object Test extends Properties("quasiquotes")
-               with TreeSimiliarity
-               with ArbitraryTreesAndNames {
+object ConstructionProps extends Properties("construction")
+                            with TreeSimiliarity
+                            with ArbitraryTreesAndNames {
 
-  val anyRef = Select(Ident(newTermName("scala")), newTypeName("AnyRef"))
+  val anyRef = Select(Ident(TermName("scala")), TypeName("AnyRef"))
 
   val emtpyConstructor =
     DefDef(
@@ -137,7 +137,7 @@ object Test extends Properties("quasiquotes")
   }
 
   property("splice trees into type apply") = forAll { (fun: Tree, types: List[Tree]) =>
-    q"$fun[$types]" ≈ TypeApply(fun, types)
+    fun.isTerm implies (q"$fun[$types]" ≈ TypeApply(fun, types))
   }
 
   property("splice type names into type bounds") = forAll { (T1: TypeName, T2: TypeName, T3: TypeName) =>
@@ -247,5 +247,6 @@ object Test extends Properties("quasiquotes")
   //   q"type $T1[$T2 >: _root_.scala.Any <: _root_.scala.Nothing] = $t" ≈
   //     TypeDef(Modifiers(), T1, List(T2), t)
   // }
+
 }
 

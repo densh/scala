@@ -55,7 +55,7 @@ trait ArbitraryTreesAndNames {
       yield Alternative(trees)
 
   def genAppliedTypeTree(size: Int) =
-    for(tpt <- genTree(size - 1);
+    for(tpt <- genTree(size - 1) if tpt.isType;
         args <- smallList(size, genTree(size - 1)))
       yield AppliedTypeTree(tpt, args)
 
@@ -161,7 +161,7 @@ trait ArbitraryTreesAndNames {
       yield Select(qual, name)
 
   def genSelectFromTypeTree(size: Int) =
-    for(qual <- genTree(size - 1); name <- genTypeName)
+    for(qual <- genTree(size - 1) if qual.isType; name <- genTypeName)
       yield SelectFromTypeTree(qual, name)
 
   def genReferenceToBoxed(size: Int) =
@@ -199,7 +199,7 @@ trait ArbitraryTreesAndNames {
       yield Try(block, catches, finalizer)
 
   def genTypeApply(size: Int) =
-    for(fun <- genTree(size - 1); args <- smallList(size, genTree(size - 1)))
+    for(fun <- genTree(size - 1) if fun.isTerm; args <- smallList(size, genTree(size - 1)))
       yield TypeApply(fun, args)
 
   def genTypeBoundsTree(size: Int) =
@@ -211,7 +211,7 @@ trait ArbitraryTreesAndNames {
         tparams <- smallList(size, genTypeDef(size - 1)); rhs <- genTree(size - 1))
       yield TypeDef(mods, name, tparams, rhs)
 
-  def genTypeTree(size: Int): Gen[TypeTree] = TypeTree()
+  def genTypeTree: Gen[TypeTree] = TypeTree()
 
   def genTyped(size: Int) =
     for(expr <- genTree(size - 1); tpt <- genTree(size - 1))
@@ -230,7 +230,7 @@ trait ArbitraryTreesAndNames {
     if(size < 1)
       EmptyTree
     else if(size == 1)
-      oneOf(genLiteral, genIdent, EmptyTree)
+      oneOf(genLiteral, genIdent, genTypeTree, EmptyTree)
     else
       oneOf(genTree(1), genValDef(size - 1), genTypeDef(size - 1),
             genAlternative(size - 1), genAnnotated(size - 1), genAppliedTypeTree(size - 1),
@@ -246,7 +246,18 @@ trait ArbitraryTreesAndNames {
             genTemplate(size - 1), genStar(size - 1), genSuper(size - 1),
             genThis(size - 1), genThrow(size - 1), genTry(size - 1),
             genTypeApply(size - 1), genTypeBoundsTree(size - 1),
-            genTypeTree(size - 1), genTyped(size - 1), genUnApply(size - 1))
+            genTyped(size - 1), genUnApply(size - 1))
+
+  // def genIdentIsType =
+  //   for(name <- genTypeName) yield Ident(name)
+
+  // def genTreeIsType(size: Int): Gen[Tree] =
+  //   if(size < 1)
+  //     EmptyTree
+  //   else if(size == 1)
+  //     oneOf(genIdentIsType, genTypeTree)
+  //   else
+  //     oneOf()
 
   implicit val arbConstant: Arbitrary[Constant] = Arbitrary(genConstant)
   implicit val arbModifiers: Arbitrary[Modifiers] = Arbitrary(genModifiers)
@@ -260,4 +271,8 @@ trait ArbitraryTreesAndNames {
   implicit val arbDefDef: Arbitrary[DefDef] = Arbitrary(sized(s => genDefDef(s)))
   implicit val arbTypeDef: Arbitrary[TypeDef] = Arbitrary(sized(s => genTypeDef(s)))
   implicit val arbTree: Arbitrary[Tree] = Arbitrary(sized(s => genTree(s)))
+
+  implicit class Implies(self: Boolean) {
+    def implies(other: => Boolean) = if(!self) true else other
+  }
 }

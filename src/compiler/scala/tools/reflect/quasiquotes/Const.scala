@@ -4,5 +4,5 @@ package quasiquotes
 
 object Const {
   val prefix = "$quasiquote$"
-  val debug = true
+  val debug = false
 }
