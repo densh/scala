@@ -969,8 +969,24 @@ trait Trees extends api.Trees { self: SymbolTable =>
   }
 
   case object EmptyTree extends TermTree with CannotHaveAttrs { override def isEmpty = true; val asList = List(this) }
+
   object emptyValDef extends ValDef(Modifiers(PRIVATE), nme.WILDCARD, TypeTree(NoType), EmptyTree) with CannotHaveAttrs
+  object EmptyValDefLike extends EmptyValDefExtractor {
+    def unapply(t: Tree): Boolean = {
+      println(s"emptyValDef.this = ${showRaw(this, printIds=true)}")
+      println(s"emptyValDef.other = ${showRaw(t, printIds=true)}")
+      t == emptyValDef
+    }
+  }
+
   object pendingSuperCall extends Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List()) with CannotHaveAttrs
+  object PendingSuperCallLike extends PendingSuperCallExtractor {
+    def unapply(t: Tree): Boolean = {
+      println(s"pendingSuperCall.this = ${showRaw(this, printIds=true)}")
+      println(s"pendingSuperCall.other = ${showRaw(t, printIds=true)}")
+      t == pendingSuperCall
+    }
+  }
 
   def DefDef(sym: Symbol, mods: Modifiers, vparamss: List[List[ValDef]], rhs: Tree): DefDef =
     atPos(sym.pos) {

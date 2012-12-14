@@ -42,4 +42,8 @@ trait FlagSets extends api.FlagSets { self: SymbolTable =>
     val PRESUPER      : FlagSet = Flags.PRESUPER
     val DEFAULTINIT   : FlagSet = Flags.DEFAULTINIT
   }
+
+  object FlagsAsBits extends FlagsAsBitsExtractor {
+    def unapply(flags: Long): Option[Long] = Some(flags)
+  }
 }

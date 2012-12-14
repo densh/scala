@@ -12,12 +12,18 @@ abstract class UnapplyReifier extends ReflectReifier with Types {
   val placeholders: Set[String]
   val correspondingTypes: mutable.Map[String, Type] = mutable.Map()
 
-  override def reifyTreeCore(tree: Tree): Tree = tree match {
+  override def reifyTree(tree: Tree) = reifyBasicTree(tree)
+
+  override def reifyBasicTree(tree: Tree): Tree = tree match {
     case Ident(name) if placeholders.contains(name.toString) =>
       correspondingTypes(name.toString) = treeType
       Bind(name, Ident(nme.WILDCARD))
+    case global.emptyValDef =>
+      mirrorFactoryCall("EmptyValDefLike")
+    case global.pendingSuperCall =>
+      mirrorFactoryCall("PendingSuperCallLike")
     case _ =>
-      super.reifyTreeCore(tree)
+      super.reifyBasicTree(tree)
   }
 
   override def scalaFactoryCall(name: String, args: Tree*): Tree =
@@ -27,13 +33,11 @@ abstract class UnapplyReifier extends ReflectReifier with Types {
     if(!placeholders.contains(name.toString))
       super.reifyName(name)
     else {
-      correspondingTypes(name.toString) =
-        if(name.isTypeName)
-          typeNameType
-        else
-          termNameType
-      Bind(name, Ident(nme.WILDCARD))
+      correspondingTypes(name.toString) = nameType
+      Bind(TermName(name.toString), Ident(nme.WILDCARD))
     }
   }
+  override def reifyModifiers(m: global.Modifiers) =
+    mirrorFactoryCall(nme.Modifiers, mirrorFactoryCall("FlagsAsBits", reify(m.flags)), reify(m.privateWithin), reify(m.annotations))
 }
 

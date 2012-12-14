@@ -45,8 +45,8 @@ abstract class UnapplyMacro extends Types {
   val tree = parse(code)
   val (reifiedTree, correspondingTypes) = reifyTree(tree)
 
-  if(Const.debug) println(s"\ncorresponding types=\n$correspondingTypes\n")
-  if(Const.debug) println(s"\ncode to parse=\n$code\n")
+  if(Const.debug) println(s"corresponding types=\n$correspondingTypes\n")
+  if(Const.debug) println(s"code to parse=\n$code\n")
   if(Const.debug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
   if(Const.debug) println(s"reified tree\n=${reifiedTree}\n=${showRaw(reifiedTree)}\n")
 
@@ -65,7 +65,9 @@ abstract class UnapplyMacro extends Types {
   val unapplyBody =
     Block(
       List(Import(Ident(TermName("$u")), List(ImportSelector(nme.WILDCARD, 0, null, 0)))),
-      Match(Ident(TermName("tree")), List(CaseDef(reifiedTree, EmptyTree, caseBody))))
+      Match(Ident(TermName("tree")), List(
+        CaseDef(reifiedTree, EmptyTree, caseBody),
+        CaseDef(Ident(nme.WILDCARD), EmptyTree, Ident(TermName("None"))))))
 
   val localTreeType = Select(Ident(TermName("$u")), TypeName("Tree"))
 
@@ -102,7 +104,7 @@ abstract class UnapplyMacro extends Types {
         DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List())), Literal(Constant(())))),
         unapplyMethod)))
 
-  if(Const.debug) println(s"\nmoduledef\n=${showRaw(moduleDef, printTypes=true, printIds=true)}\n=$moduleDef\n")
+  if(Const.debug) println(s"moduledef\n=${showRaw(moduleDef, printTypes=true, printIds=true)}\n=$moduleDef\n")
 
   ctx.introduceTopLevel(moduleDef)
 
@@ -127,13 +129,15 @@ abstract class UnapplyMacro extends Types {
       val reifee = null
       val concrete = false
     } with UnapplyReifier
-    val reifiedtree = reifier.reifyTreeCore(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
+    val reifiedtree = reifier.reify(tree.asInstanceOf[reifier.global.Tree]).asInstanceOf[Tree]
     val correspondingTypes = reifier.correspondingTypes.map { pair =>
       val tpe = pair._2.asInstanceOf[global.Type]
       if(tpe =:= termNameType)
         (pair._1, Select(Ident(TermName("$u")), TypeName("TermName")))
       else if(tpe =:= typeNameType)
         (pair._1, Select(Ident(TermName("$u")), TypeName("TypeName")))
+      else if(tpe =:= nameType)
+        (pair._1, Select(Ident(TermName("$u")), TypeName("Name")))
       else if(tpe =:= treeType)
         (pair._1, Select(Ident(TermName("$u")), TypeName("Tree")))
       else

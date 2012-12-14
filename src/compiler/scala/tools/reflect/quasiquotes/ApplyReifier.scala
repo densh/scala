@@ -101,10 +101,12 @@ abstract class ApplyReifier extends ReflectReifier with Types {
     }
   }
 
-  override def reifyTreeCore(tree: Tree): Tree = tree match {
+  override def reifyTree(tree: Tree) = reifyBasicTree(tree)
+
+  override def reifyBasicTree(tree: Tree): Tree = tree match {
     case Ident(SubsToTree(tree)) => tree
     case Ident(SubsToLiftable(tree)) => tree
-    case _ => super.reifyTreeCore(tree)
+    case _ => super.reifyBasicTree(tree)
   }
 
   override def reifyName(name: Name): Tree =
