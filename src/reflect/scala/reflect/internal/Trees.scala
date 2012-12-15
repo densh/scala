@@ -399,13 +399,6 @@ trait Trees extends api.Trees { self: SymbolTable =>
   }
   object Apply extends ApplyExtractor
 
-  object Applied extends AppliedExtractor {
-    def unapply(tree: Tree): Option[(Tree, List[Tree], List[List[Tree]])] = tree match {
-      case treeInfo.Applied(fun, targs, argss) => Some((fun, targs, argss))
-      case _ => None
-    }
-  }
-
   // TODO remove this class, add a tree attachment to Apply to track whether implicits were involved
   // copying trees will all too easily forget to distinguish subclasses
   class ApplyToImplicitArgs(fun: Tree, args: List[Tree]) extends Apply(fun, args)
@@ -978,14 +971,8 @@ trait Trees extends api.Trees { self: SymbolTable =>
   case object EmptyTree extends TermTree with CannotHaveAttrs { override def isEmpty = true; val asList = List(this) }
 
   object emptyValDef extends ValDef(Modifiers(PRIVATE), nme.WILDCARD, TypeTree(NoType), EmptyTree) with CannotHaveAttrs
-  object EmptyValDefLike extends EmptyValDefExtractor {
-    def unapply(t: Tree): Boolean = t == emptyValDef
-  }
 
   object pendingSuperCall extends Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List()) with CannotHaveAttrs
-  object PendingSuperCallLike extends PendingSuperCallExtractor {
-    def unapply(t: Tree): Boolean = t == pendingSuperCall
-  }
 
   def DefDef(sym: Symbol, mods: Modifiers, vparamss: List[List[ValDef]], rhs: Tree): DefDef =
     atPos(sym.pos) {

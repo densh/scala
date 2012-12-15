@@ -14,16 +14,14 @@ abstract class ApplyReifier extends ReflectReifier with Types {
   object SubsToLiftable {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded) match {
-        case Some(tree) =>
-          val liftType = appliedType(liftableType, List(tree.tpe))
-          val lift = ctx.inferImplicitValue(liftType.asInstanceOf[ctx.Type], silent = true).asInstanceOf[Tree]
-          if(lift != EmptyTree) {
-            Some(wrapLift(lift, tree))
-          } else
-            None
-        case None => None
-      }
+      subsmap.get(name.encoded).flatMap(tree => {
+        val liftType = appliedType(liftableType, List(tree.tpe))
+        val lift = ctx.inferImplicitValue(liftType.asInstanceOf[ctx.Type], silent = true).asInstanceOf[Tree]
+        if(lift != EmptyTree) {
+          Some(wrapLift(lift, tree))
+        } else
+          None
+      })
 
     def wrapLift(lift: Tree, tree: Tree) =
       TypeApply(
@@ -34,12 +32,7 @@ abstract class ApplyReifier extends ReflectReifier with Types {
   object SubsToTree {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded).flatMap { tree =>
-        if(tree.tpe <:< treeType)
-          Some(tree)
-        else
-          None
-      }
+      subsmap.get(name.encoded).collect { case tree if tree.tpe <:< treeType => tree }
   }
 
   object SubsToNameTree {
@@ -59,12 +52,7 @@ abstract class ApplyReifier extends ReflectReifier with Types {
   object SubsToListTree {
 
     def unapply(name: Name): Option[Tree] =
-      subsmap.get(name.encoded).flatMap { tree =>
-        if(tree.tpe <:< listTreeType)
-          Some(tree)
-        else
-          None
-      }
+      subsmap.get(name.encoded).collect { case tree if tree.tpe <:< listTreeType => tree }
   }
 
   def isNothingTree(t: Tree) =
@@ -77,12 +65,7 @@ abstract class ApplyReifier extends ReflectReifier with Types {
 
     def unapply(any: Any): Option[Tree] = any match {
       case TypeDef(_, name, List(), TypeBoundsTree(lo, hi)) if isNothingTree(lo) && isAnyTree(hi) =>
-        subsmap.get(name.encoded).flatMap { tree =>
-          if(tree.tpe <:< typeDefListType)
-            Some(tree)
-          else
-            None
-        }
+        subsmap.get(name.encoded).collect { case tree if tree.tpe <:< typeDefListType => tree }
       case _ => None
     }
   }
@@ -91,12 +74,7 @@ abstract class ApplyReifier extends ReflectReifier with Types {
 
     def unapply(any: Any): Option[Tree] = any match {
       case TypeDef(_, name, List(), TypeBoundsTree(lo, hi)) if isNothingTree(lo) && isAnyTree(hi) =>
-        subsmap.get(name.encoded).flatMap { tree =>
-          if(tree.tpe <:< typeDefType)
-            Some(tree)
-          else
-            None
-        }
+        subsmap.get(name.encoded).collect { case tree if tree.tpe <:< typeDefType => tree }
       case _ => None
     }
   }
@@ -120,12 +98,12 @@ abstract class ApplyReifier extends ReflectReifier with Types {
 
   override def reifyList(xs: List[Any]): Tree =
     Select(
-      mkList(xs.map { _ match {
+      mkList(xs.map {
         case SubsToTypeDef(typedef) => mkList(List(typedef))
         case SubsToTypeDefList(typedefs) => typedefs
         case Ident(SubsToListTree(listtree)) => listtree
         case x @ _ => mkList(List(reify(x)))
-      }}),
+      }),
       newTermName("flatten"))
 
 }

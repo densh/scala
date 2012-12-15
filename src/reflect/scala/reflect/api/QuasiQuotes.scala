@@ -1,8 +1,6 @@
 package scala.reflect
 package api
 
-import scala.language.experimental.macros
-
 
 trait QuasiQuotes { self: Universe =>
 

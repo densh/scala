@@ -20,11 +20,11 @@ abstract class UnapplyReifier extends ReflectReifier with Types {
       correspondingTypes(name.toString) = treeType
       Bind(TermName(name.toString), Ident(nme.WILDCARD))
     case Applied(fun, targs, argss) =>
-      mirrorFactoryCall("Applied", reify(fun), reifyList(targs), reifyList(argss))
+      mirrorBuildCall("Applied", reify(fun), reifyList(targs), reifyList(argss))
     case global.emptyValDef =>
-      mirrorFactoryCall("EmptyValDefLike")
+      mirrorBuildCall("EmptyValDefLike")
     case global.pendingSuperCall =>
-      mirrorFactoryCall("PendingSuperCallLike")
+      mirrorBuildCall("PendingSuperCallLike")
     case _ =>
       super.reifyBasicTree(tree)
   }
@@ -41,7 +41,7 @@ abstract class UnapplyReifier extends ReflectReifier with Types {
     }
   }
   override def reifyModifiers(m: global.Modifiers) =
-    mirrorFactoryCall(nme.Modifiers, mirrorFactoryCall("FlagsAsBits", reify(m.flags)), reify(m.privateWithin), reify(m.annotations))
+    mirrorFactoryCall(nme.Modifiers, mirrorBuildCall("FlagsAsBits", reify(m.flags)), reify(m.privateWithin), reify(m.annotations))
 
   override def reifyList(xs: List[Any]): Tree = {
     val last = if(xs.length > 0) xs.last else EmptyTree
