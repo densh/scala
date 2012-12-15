@@ -1784,6 +1784,12 @@ trait Trees { self: Universe =>
    */
   val Apply: ApplyExtractor
 
+  val Applied: AppliedExtractor
+
+  trait AppliedExtractor {
+    def unapply(tree: Tree): Option[(Tree, List[Tree], List[List[Tree]])]
+  }
+
   /** An extractor class to create and pattern match with syntax `Apply(fun, args)`.
    *  This AST node corresponds to the following Scala code:
    *
@@ -3056,4 +3062,5 @@ trait Trees { self: Universe =>
    *  @group Traversal
    */
   lazy val NoMods = Modifiers()
+
 }

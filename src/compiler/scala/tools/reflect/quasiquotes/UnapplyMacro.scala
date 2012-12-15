@@ -4,7 +4,7 @@ package quasiquotes
 import java.util.UUID.randomUUID
 import scala.tools.nsc.Global
 import scala.reflect.macros.runtime.Context
-import scala.collection.mutable
+import scala.collection.SortedMap
 
 
 abstract class UnapplyMacro extends Types {
@@ -31,15 +31,25 @@ abstract class UnapplyMacro extends Types {
   unapplySelector.setType(treeType)
 
   val (code, placeholders) = {
-    val sb = new StringBuilder(parts.head)
-    val placeholders = mutable.ListBuffer[String]()
-    for(part <- parts.tail) {
-      val placeholder = ctx.fresh(Const.prefix)
-      sb.append(placeholder)
+    val sb = new StringBuilder()
+    var placeholders = SortedMap[String, String]()
+
+    for(p <- parts.init) {
+      val (part, annot) =
+        if(p.endsWith("..."))
+          (p.substring(0, p.length - 3), "...")
+        else if(p.endsWith(".."))
+          (p.substring(0, p.length - 2), "..")
+        else
+          (p, "")
+      val freshname = ctx.fresh(Const.prefix)
       sb.append(part)
-      placeholders += placeholder
+      sb.append(freshname)
+      placeholders += freshname -> annot
     }
-    (sb.toString, placeholders.toList)
+    sb.append(parts.last)
+
+    (sb.toString, placeholders.toMap)
   }
 
   val tree = parse(code)
@@ -51,16 +61,16 @@ abstract class UnapplyMacro extends Types {
   if(Const.debug) println(s"reified tree\n=${reifiedTree}\n=${showRaw(reifiedTree)}\n")
 
   val caseBody: Tree =
-    if(placeholders.length == 0)
+    if(placeholders.size == 0)
       Literal(Constant(true))
-    else if(placeholders.length == 1)
-      Apply(Ident(TermName("Some")), List(Ident(TermName(placeholders(0)))))
+    else if(placeholders.size == 1)
+      Apply(Ident(TermName("Some")), List(Ident(TermName(placeholders.keys.head))))
     else
       Apply(
         Ident(TermName("Some")),
         List(Apply(
-          Ident(TermName("Tuple" + placeholders.length)),
-          placeholders.map(p => Ident(TermName(p))))))
+          Ident(TermName("Tuple" + placeholders.size)),
+          placeholders.keys.map(p => Ident(TermName(p))).toList)))
 
   val unapplyBody =
     Block(
@@ -72,13 +82,13 @@ abstract class UnapplyMacro extends Types {
   val localTreeType = Select(Ident(TermName("$u")), TypeName("Tree"))
 
   val unapplyResultType: Tree =
-    if(placeholders.length == 0){
+    if(placeholders.size == 0){
       Ident(TypeName("Boolean"))
-    } else if(placeholders.length == 1){
-      AppliedTypeTree(Ident(TypeName("Option")), List(correspondingTypes(placeholders(0))))
+    } else if(placeholders.size == 1){
+      AppliedTypeTree(Ident(TypeName("Option")), List(correspondingTypes(placeholders.keys.head)))
     } else {
-      val tuple = Ident(TypeName("Tuple" + placeholders.length))
-      val treetuple = AppliedTypeTree(tuple, placeholders.map(p => correspondingTypes(p)))
+      val tuple = Ident(TypeName("Tuple" + placeholders.size))
+      val treetuple = AppliedTypeTree(tuple, placeholders.keys.map(p => correspondingTypes(p)).toList)
       val optiontreetuple = AppliedTypeTree(Ident(TypeName("Option")), List(treetuple))
       optiontreetuple
     }
@@ -123,7 +133,7 @@ abstract class UnapplyMacro extends Types {
       val ctx: ctx0.type = ctx0
       val global: ctx0.universe.type = ctx0.universe
       val universe = universe0.asInstanceOf[global.Tree]
-      val placeholders: Set[String] = placeholders0.toSet
+      val placeholders = placeholders0
       val mirror = EmptyTree.asInstanceOf[global.Tree]
       val typer = null
       val reifee = null
@@ -140,6 +150,8 @@ abstract class UnapplyMacro extends Types {
         (pair._1, Select(Ident(TermName("$u")), TypeName("Name")))
       else if(tpe =:= treeType)
         (pair._1, Select(Ident(TermName("$u")), TypeName("Tree")))
+      else if(tpe =:= listTreeType)
+        (pair._1, AppliedTypeTree(Ident(TypeName("List")), List(Select(Ident(TermName("$u")), TypeName("Tree")))))
       else
         throw new Exception("Unexpected reified type.")
     }

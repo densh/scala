@@ -399,6 +399,13 @@ trait Trees extends api.Trees { self: SymbolTable =>
   }
   object Apply extends ApplyExtractor
 
+  object Applied extends AppliedExtractor {
+    def unapply(tree: Tree): Option[(Tree, List[Tree], List[List[Tree]])] = tree match {
+      case treeInfo.Applied(fun, targs, argss) => Some((fun, targs, argss))
+      case _ => None
+    }
+  }
+
   // TODO remove this class, add a tree attachment to Apply to track whether implicits were involved
   // copying trees will all too easily forget to distinguish subclasses
   class ApplyToImplicitArgs(fun: Tree, args: List[Tree]) extends Apply(fun, args)
