@@ -8,6 +8,7 @@ import scala.reflect.internal.util.{BatchSourceFile, SourceFile}
 
 abstract class Parser extends ScalaParser {
   import global._
+  val placeholders: Set[String]
 
   def parse(code: String): Tree = {
     val wrappedCode = "object wrapper {" + EOL + code + EOL + "}"
@@ -21,6 +22,17 @@ abstract class Parser extends ScalaParser {
   }
 
   class QuasiQuoteParser(source0: SourceFile) extends SourceFileParser(source0) {
+    // q"def foo($x)"
     override def allowTypelessParams = true
+
+    // q"{ $x }"
+    override def block(): Tree = makeBlock(blockStatSeq())
+    private def makeBlock(stats: List[Tree]): Tree =
+      if (stats.isEmpty) Literal(Constant())
+      else if (!stats.last.isTerm) Block(stats, Literal(Constant()))
+      else if (stats.length == 1) stats match {
+        case Ident(TermName(name)) :: Nil if placeholders(name) => Block(stats.init, stats.last)
+        case _ => stats.head
+      } else Block(stats.init, stats.last)
   }
 }

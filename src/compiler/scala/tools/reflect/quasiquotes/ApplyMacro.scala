@@ -7,7 +7,7 @@ import scala.collection.mutable
 import scala.reflect.internal.util.Collections._
 
 
-abstract class ApplyMacro {
+abstract class ApplyMacro { self =>
   val ctx: Context
   import ctx.universe._
 
@@ -51,7 +51,10 @@ abstract class ApplyMacro {
   if(settings.Yquasiquotedebug.value) println(s"result tree\n=${result}\n=${showRaw(result)}\n")
 
   def parse(code: String) = {
-    val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
+    val parser = new {
+      val global: ctx.universe.type = ctx.universe
+      val placeholders = self.subsmap.keys.toSet
+    } with Parser
     parser.parse(code)
   }
 

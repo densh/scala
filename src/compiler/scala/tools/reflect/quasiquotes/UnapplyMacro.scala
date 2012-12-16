@@ -7,7 +7,7 @@ import scala.reflect.macros.runtime.Context
 import scala.collection.SortedMap
 
 
-abstract class UnapplyMacro extends Types {
+abstract class UnapplyMacro extends Types { self =>
   val ctx: Context
   val global: ctx.universe.type = ctx.universe
   import ctx.universe._
@@ -35,7 +35,7 @@ abstract class UnapplyMacro extends Types {
     var placeholders = SortedMap[String, String]()
 
     for(p <- parts.init) {
-      val (part, annot) =
+      val (part, annot) = // TODO: better name for annot. cardinality?
         if(p.endsWith("..."))
           (p.substring(0, p.length - 3), "...")
         else if(p.endsWith(".."))
@@ -121,7 +121,10 @@ abstract class UnapplyMacro extends Types {
   val result = Apply(Apply(Select(Ident(moduleName), TermName("unapply")), List(universe)), List(unapplySelector))
 
   def parse(code: String) = {
-    val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
+    val parser = new {
+      val global: ctx.universe.type = ctx.universe
+      val placeholders = self.placeholders.keys.toSet
+    } with Parser
     parser.parse(code)
   }
 
