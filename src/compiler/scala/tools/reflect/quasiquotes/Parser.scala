@@ -2,6 +2,7 @@ package scala.tools.reflect
 package quasiquotes
 
 import scala.tools.nsc.ast.parser.{Parsers => ScalaParser}
+import scala.tools.nsc.ast.parser.Tokens._
 import scala.compat.Platform.EOL
 import scala.reflect.internal.util.{BatchSourceFile, SourceFile}
 
@@ -34,5 +35,15 @@ abstract class Parser extends ScalaParser {
         case Ident(TermName(name)) :: Nil if placeholders(name) => Block(stats.init, stats.last)
         case _ => stats.head
       } else Block(stats.init, stats.last)
+
+    // q"foo match { $x }"
+    override def caseClauses(): List[CaseDef] = {
+      val cases = caseSeparated { atPos(in.offset)(treeBuilder.makeCaseDef(pattern(), guard(), caseBlock())) }
+      if (cases.isEmpty) {
+        if (in.token == IDENTIFIER && placeholders(in.name)) ???
+        else accept(CASE) // trigger error if there are no cases and noone gets spliced
+      }
+      cases
+    }
   }
 }
