@@ -7,7 +7,7 @@ import scala.reflect.macros.runtime.Context
 import scala.collection.SortedMap
 
 
-abstract class UnapplyMacro extends Types {
+abstract class UnapplyMacro extends Types { self =>
   val ctx: Context
   val global: ctx.universe.type = ctx.universe
   import ctx.universe._
@@ -16,18 +16,18 @@ abstract class UnapplyMacro extends Types {
   val (universe, parts) =
     ctx.macroApplication match {
       case Apply(Select(Select(Apply(Select(universe, _), List(Apply(_, parts0))), _), _), _) =>
-        val parts = parts0.map(_ match {
+        val parts = parts0.map{
           case Literal(Constant(s: String)) => s
-          case _ => throw new Exception("")
-        })
+          case _ => throw new Exception("") // empty exception?
+        }
         (universe, parts)
-      case _ => throw new Exception("")
+      case _ => throw new Exception("") // empty exception?
     }
 
   if(!(parts.length >= 1 && parts.length <= 23))
-    throw new Exception("Inapropriate amount of quasiquote params.")
+    ctx.abort(ctx.enclosingPosition, "Inappropriate amount of quasiquote params.")
 
-  val unapplySelector = Ident(TermName("<unapply-selector>"))
+  val unapplySelector = Ident(nme.SELECTOR_DUMMY)
   unapplySelector.setType(treeType)
 
   val (code, placeholders) = {
@@ -35,14 +35,14 @@ abstract class UnapplyMacro extends Types {
     var placeholders = SortedMap[String, String]()
 
     for(p <- parts.init) {
-      val (part, annot) =
+      val (part, annot) = // TODO: better name for annot. cardinality?
         if(p.endsWith("..."))
           (p.substring(0, p.length - 3), "...")
         else if(p.endsWith(".."))
           (p.substring(0, p.length - 2), "..")
         else
           (p, "")
-      val freshname = ctx.fresh(Const.prefix)
+      val freshname = ctx.fresh(nme.QUASIQUOTE_PREFIX)
       sb.append(part)
       sb.append(freshname)
       placeholders += freshname -> annot
@@ -55,10 +55,10 @@ abstract class UnapplyMacro extends Types {
   val tree = parse(code)
   val (reifiedTree, correspondingTypes) = reifyTree(tree)
 
-  if(Const.debug) println(s"corresponding types=\n$correspondingTypes\n")
-  if(Const.debug) println(s"code to parse=\n$code\n")
-  if(Const.debug) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
-  if(Const.debug) println(s"reified tree\n=${reifiedTree}\n=${showRaw(reifiedTree)}\n")
+  if(settings.Yquasiquotedebug.value) println(s"corresponding types=\n$correspondingTypes\n")
+  if(settings.Yquasiquotedebug.value) println(s"code to parse=\n$code\n")
+  if(settings.Yquasiquotedebug.value) println(s"parsed tree\n=${tree}\n=${showRaw(tree)}\n")
+  if(settings.Yquasiquotedebug.value) println(s"reified tree\n=${reifiedTree}\n=${showRaw(reifiedTree)}\n")
 
   val caseBody: Tree =
     if(placeholders.size == 0)
@@ -104,24 +104,27 @@ abstract class UnapplyMacro extends Types {
       unapplyResultType,
       unapplyBody)
 
-  val moduleName = TermName(Const.prefix + "matcher$" + randomUUID().toString.replace("-", ""))
+  val moduleName = TermName(nme.QUASIQUOTE_MATCHER + randomUUID().toString.replace("-", ""))
 
   val moduleDef =
     ModuleDef(Modifiers(), moduleName, Template(
       List(Select(Ident(TermName("scala")), TypeName("AnyRef"))),
       emptyValDef,
       List(
-        DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(tpnme.EMPTY), tpnme.EMPTY), nme.CONSTRUCTOR), List())), Literal(Constant(())))),
+        DefDef(Modifiers(), nme.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(pendingSuperCall), Literal(Constant(())))),
         unapplyMethod)))
 
-  if(Const.debug) println(s"moduledef\n=${showRaw(moduleDef, printTypes=true, printIds=true)}\n=$moduleDef\n")
+  if(settings.Yquasiquotedebug.value) println(s"moduledef\n=${showRaw(moduleDef, printTypes=true, printIds=true)}\n=$moduleDef\n")
 
   ctx.introduceTopLevel(moduleDef)
 
   val result = Apply(Apply(Select(Ident(moduleName), TermName("unapply")), List(universe)), List(unapplySelector))
 
   def parse(code: String) = {
-    val parser = new { val global: ctx.universe.type = ctx.universe } with Parser
+    val parser = new {
+      val global: ctx.universe.type = ctx.universe
+      val placeholders = self.placeholders.keys.toSet
+    } with Parser
     parser.parse(code)
   }
 
@@ -153,7 +156,7 @@ abstract class UnapplyMacro extends Types {
       else if(tpe =:= listTreeType)
         (pair._1, AppliedTypeTree(Ident(TypeName("List")), List(Select(Ident(TermName("$u")), TypeName("Tree")))))
       else
-        throw new Exception("Unexpected reified type.")
+        ctx.abort(ctx.enclosingPosition, s"Unexpected reified type $tpe.")
     }
     (reifiedtree, correspondingTypes)
   }

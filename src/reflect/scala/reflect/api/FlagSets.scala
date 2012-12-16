@@ -177,10 +177,4 @@ trait FlagSets { self: Universe =>
    *  @group Flags
    */
   val NoFlags: FlagSet
-
-  val FlagsAsBits: FlagsAsBitsExtractor
-
-  trait FlagsAsBitsExtractor {
-    def unapply(flags: Long): Option[Long]
-  }
 }
