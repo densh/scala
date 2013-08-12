@@ -66,8 +66,6 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def Ident(sym: Symbol): Ident
 
-    def Block(stats: List[Tree]): Block
-
     def TypeTree(tp: Type): TypeTree
 
     def thisPrefix(sym: Symbol): Type
@@ -115,5 +113,12 @@ private[reflect] trait BuildUtils { self: Universe =>
     }
 
     def RefTree(qual: Tree, sym: Symbol): Tree
+
+    val Block: BlockExtractor
+
+    trait BlockExtractor {
+      def apply(stats: List[Tree]): Block
+      def unapply(tree: Tree): Some[List[Tree]]
+    }
   }
 }

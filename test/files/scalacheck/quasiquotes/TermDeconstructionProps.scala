@@ -119,4 +119,9 @@ object TermDeconstructionProps extends QuasiquoteProperties("term deconstruction
     val q"$mods0 def foo" = q"$mods def foo"
     assert(mods0 ≈ mods)
   }
+
+  property("deconstruct block") = test {
+    val q"{ ..$xs }" = q"{ x1; x2; x3 }"
+    assert(xs ≈ List(q"x1", q"x2", q"x3"))
+  }
 }

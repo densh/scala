@@ -51,6 +51,7 @@ trait Reifiers { self: Quasiquotes =>
       case TupleTypePlaceholder(args) => reifyTupleType(args)
       case CasePlaceholder(tree, location, _) => reifyCase(tree, location)
       case ClassPlaceholder(tree) => reifyClass(tree)
+      case Block(stats, expr) => reifyBuildCall(nme.Block, stats :+ expr)
       case _ => EmptyTree
     }
 
