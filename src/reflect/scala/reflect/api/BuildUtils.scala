@@ -85,6 +85,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     val TypeApplied: TypeAppliedExtractor
 
     trait TypeAppliedExtractor {
+      def apply(tree: Tree, targs: List[Tree]): Tree
       def unapply(tree: Tree): Some[(Tree, List[Tree])]
     }
 
@@ -119,6 +120,13 @@ private[reflect] trait BuildUtils { self: Universe =>
     trait BlockExtractor {
       def apply(stats: List[Tree]): Block
       def unapply(tree: Tree): Some[List[Tree]]
+    }
+
+    val SyntacticNew: SyntacticNewExtractor
+
+    trait SyntacticNewExtractor {
+      def apply(parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
+      def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])]
     }
   }
 }

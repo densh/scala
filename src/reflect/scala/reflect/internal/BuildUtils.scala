@@ -77,19 +77,26 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object TypeApplied extends TypeAppliedExtractor {
+      def apply(tree: Tree, targs: List[Tree]): Tree =
+        if (targs.isEmpty) tree
+        else if (tree.isTerm) TypeApply(tree, targs)
+        else if (tree.isType) AppliedTypeTree(tree, targs)
+        else throw new IllegalArgumentException(s"can't apply types to $tree")
+
       def unapply(tree: Tree): Some[(Tree, List[Tree])] = tree match {
         case TypeApply(fun, targs) => Some((fun, targs))
+        case AppliedTypeTree(tpe, targs) => Some((tpe, targs))
         case _ => Some((tree, Nil))
       }
     }
 
     object Applied extends AppliedExtractor {
+      def apply(tree: Tree, argss: List[List[Tree]]): Tree =
+        argss.foldLeft(tree) { (tree, args) => Apply(tree, args) }
+
       def unapply(tree: Tree): Some[(Tree, List[List[Tree]])] = {
         val treeInfo.Applied(fun, targs, argss) = tree
-        targs match {
-          case Nil => Some((fun, argss))
-          case _ => Some((TypeApply(fun, targs), argss))
-        }
+        Some((TypeApplied(fun, targs), argss))
       }
     }
 
@@ -186,6 +193,21 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     def RefTree(qual: Tree, sym: Symbol) = self.RefTree(qual, sym.name) setSymbol sym
+
+    object SyntacticNew extends SyntacticNewExtractor {
+      def apply(parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree =
+        gen.mkNew(parents, selfdef, body, NoPosition, NoPosition)
+
+      def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])] = tree match {
+        case Applied(Select(New(TypeApplied(ident, targs)), nme.CONSTRUCTOR), argss) =>
+          Some((Applied(TypeApplied(ident, targs), argss) :: Nil, emptyValDef, Nil))
+        case self.Block(List(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, List(Nil), parents, selfdef, body)),
+                        Apply(Select(New(Ident(tpnme.ANON_CLASS_NAME)), nme.CONSTRUCTOR), Nil)) =>
+          Some((parents, selfdef, body))
+        case _ =>
+          None
+      }
+    }
   }
 
   val build: BuildApi = new BuildImpl

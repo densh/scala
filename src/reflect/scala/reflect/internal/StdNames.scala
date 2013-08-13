@@ -587,6 +587,7 @@ trait StdNames {
     val SelectFromTypeTree: NameType   = "SelectFromTypeTree"
     val StringContext: NameType        = "StringContext"
     val SyntacticClassDef: NameType    = "SyntacticClassDef"
+    val SyntacticNew: NameType         = "SyntacticNew"
     val This: NameType                 = "This"
     val ThisType: NameType             = "ThisType"
     val True : NameType                = "True"

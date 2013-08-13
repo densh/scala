@@ -124,4 +124,19 @@ object TermDeconstructionProps extends QuasiquoteProperties("term deconstruction
     val q"{ ..$xs }" = q"{ x1; x2; x3 }"
     assert(xs ≈ List(q"x1", q"x2", q"x3"))
   }
+
+  property("deconstruct new") = test {
+    List(
+      q"new foo",
+      q"new foo { body }",
+      q"new foo[t]",
+      q"new foo(x)",
+      q"new foo[t](x)",
+      q"new foo[t](x) { body }",
+      q"new foo with bar",
+      q"new foo with bar { body }"
+    ).foreach { t =>
+      val q"new $name[..$targs](...$vargss) with ..$mixin { ..$body }" = t
+    }
+  }
 }

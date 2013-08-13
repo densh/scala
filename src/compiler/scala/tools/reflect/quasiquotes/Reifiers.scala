@@ -35,13 +35,9 @@ trait Reifiers { self: Quasiquotes =>
       reified
     }
 
-    override def reifyTree(tree: Tree): Tree = {
-      val reified =
-        reifyTreePlaceholder(tree) orElse
-        reifyTreeSyntactically(tree)
-      //println(s"reified ${showRaw(tree)} as $reified")
-      reified
-    }
+    override def reifyTree(tree: Tree): Tree =
+      reifyTreePlaceholder(tree) orElse
+      reifyTreeSyntactically(tree)
 
     def reifyTreePlaceholder(tree: Tree): Tree = tree match {
       case Placeholder(tree, TreeLocation(_), _) if isReifyingExpressions => tree
@@ -51,8 +47,13 @@ trait Reifiers { self: Quasiquotes =>
       case TupleTypePlaceholder(args) => reifyTupleType(args)
       case CasePlaceholder(tree, location, _) => reifyCase(tree, location)
       case ClassPlaceholder(tree) => reifyClass(tree)
-      case Block(stats, expr) => reifyBuildCall(nme.Block, stats :+ expr)
       case _ => EmptyTree
+    }
+
+    override def reifyTreeSyntactically(tree: Tree) = tree match {
+      case build.SyntacticNew(parents, selfdef, body) => reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
+      case Block(stats, expr) => reifyBuildCall(nme.Block, stats :+ expr)
+      case _ => super.reifyTreeSyntactically(tree)
     }
 
     override def reifyName(name: Name): Tree = name match {
@@ -168,7 +169,6 @@ trait Reifiers { self: Quasiquotes =>
     def isReifyingExpressions = true
 
     override def reifyTreeSyntactically(tree: Tree): Tree = tree match {
-      case Block(stats, p @ Placeholder(_, _, _)) => reifyBuildCall(nme.Block, stats :+ p)
       case Apply(f, List(Placeholder(argss, _, DotDotDot))) => reifyCallWithArgss(f, argss)
       case RefTree(qual, SymbolPlaceholder(tree)) => mirrorBuildCall(nme.RefTree, reify(qual), tree)
       case _ => super.reifyTreeSyntactically(tree)
@@ -241,6 +241,8 @@ trait Reifiers { self: Quasiquotes =>
     def isReifyingExpressions = false
 
     override def reifyTreeSyntactically(tree: Tree): Tree = tree match {
+      case build.SyntacticNew(parents, selfdef, body) =>
+        reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
       case treeInfo.Applied(fun, Nil, argss) if fun != tree && !tree.isInstanceOf[AppliedTypeTree] =>
         reifyBuildCall(nme.Applied, fun, argss)
       case treeInfo.Applied(fun, targs, argss) if fun != tree & !tree.isInstanceOf[AppliedTypeTree] =>
