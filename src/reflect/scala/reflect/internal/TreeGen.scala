@@ -413,4 +413,8 @@ abstract class TreeGen extends macros.TreeBuilder {
         )
       }
     }
+
+  /** Create a tree representing the function type (argtpes) => restpe */
+  def mkFunctionTypeTree(argtpes: List[Tree], restpe: Tree): Tree =
+    AppliedTypeTree(rootScalaDot(newTypeName("Function" + argtpes.length)), argtpes ::: List(restpe))
 }

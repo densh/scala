@@ -128,5 +128,12 @@ private[reflect] trait BuildUtils { self: Universe =>
       def apply(parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
       def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])]
     }
+
+    val FunctionType: FunctionTypeExtractor
+
+    trait FunctionTypeExtractor {
+      def apply(argtpes: List[Tree], restpe: Tree): Tree
+      def unapply(tree: Tree): Option[(List[Tree], Tree)]
+    }
   }
 }
