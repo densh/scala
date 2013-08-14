@@ -76,6 +76,8 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def mkAnnotationCtor(tree: Tree, args: List[Tree]): Tree
 
+    def mkVparamss(argss: List[List[ValDef]]): List[List[ValDef]]
+
     val FlagsAsBits: FlagsAsBitsExtractor
 
     trait FlagsAsBitsExtractor {
@@ -100,7 +102,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     trait SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
                 constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, body: List[Tree]): Tree
+                selfdef: ValDef, body: List[Tree]): ClassDef
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
                                        List[List[ValDef]], List[Tree], ValDef, List[Tree])]
     }

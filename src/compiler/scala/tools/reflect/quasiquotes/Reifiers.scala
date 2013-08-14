@@ -170,9 +170,15 @@ trait Reifiers { self: Quasiquotes =>
     def isReifyingExpressions = true
 
     override def reifyTreeSyntactically(tree: Tree): Tree = tree match {
-      case Apply(f, List(Placeholder(argss, _, DotDotDot))) => reifyCallWithArgss(f, argss)
-      case RefTree(qual, SymbolPlaceholder(tree)) => mirrorBuildCall(nme.RefTree, reify(qual), tree)
-      case _ => super.reifyTreeSyntactically(tree)
+      case Apply(f, List(Placeholder(argss, _, DotDotDot))) =>
+        reifyCallWithArgss(f, argss)
+      case RefTree(qual, SymbolPlaceholder(tree)) =>
+        mirrorBuildCall(nme.RefTree, reify(qual), tree)
+      case DefDef(mods, name, targs, argss, tpt, rhs) =>
+        mirrorCall(nme.DefDef, reify(mods), reify(name), reify(targs),
+                               reifyBuildCall(nme.mkVparamss, argss), reify(tpt), reify(rhs))
+      case _ =>
+        super.reifyTreeSyntactically(tree)
     }
 
     def reifyCallWithArgss(f: Tree, argss: Tree) = {

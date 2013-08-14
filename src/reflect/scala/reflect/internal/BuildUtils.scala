@@ -72,6 +72,12 @@ trait BuildUtils { self: SymbolTable =>
       case _ => throw new IllegalArgumentException(s"Tree ${showRaw(tree)} isn't a correct representation of annotation, consider passing Ident as a first argument")
     }
 
+    def mkVparamss(argss: List[List[ValDef]]): List[List[ValDef]] =
+      argss.map { _.map {
+        case vd @ ValDef(mods, _, _, EmptyTree) => copyValDef(vd)(mods = mods | PARAM)
+        case vd @ ValDef(mods, _, _, _) => copyValDef(vd)(mods = mods | PARAM | DEFAULTPARAM)
+      } }
+
     object FlagsAsBits extends FlagsAsBitsExtractor {
       def unapply(flags: Long): Some[Long] = Some(flags)
     }
@@ -103,7 +109,7 @@ trait BuildUtils { self: SymbolTable =>
     object SyntacticClassDef extends SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
                 constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, body: List[Tree]): Tree =
+                selfdef: ValDef, body: List[Tree]): ClassDef =
         ClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, body, NoPosition))
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
@@ -181,7 +187,7 @@ trait BuildUtils { self: SymbolTable =>
 
     object FunctionType extends FunctionTypeExtractor {
       def apply(argtpes: List[Tree], restpe: Tree): Tree = {
-        require(args.length <= MaxFunctionArity + 1, s"Function types with arity bigger than $MaxFunctionArity aren't supported")
+        require(argtpes.length <= MaxFunctionArity + 1, s"Function types with arity bigger than $MaxFunctionArity aren't supported")
         gen.mkFunctionTypeTree(argtpes, restpe)
       }
 
