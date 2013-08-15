@@ -117,27 +117,32 @@ trait BuildUtils { self: SymbolTable =>
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
                                        List[List[ValDef]], List[Tree], ValDef, List[Tree])] = tree match {
         case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody)) =>
-          // extract generated fieldDefs and constructor
-          val (defs, (ctor: DefDef) :: body) = tbody.splitAt(tbody.indexWhere {
-            case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => true
-            case _ => false
-          })
-          val (earlyDefs, fieldDefs) = defs.span(treeInfo.isEarlyDef)
+          val iofCtor = tbody.indexWhere { case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => true; case _ => false }
+          if (iofCtor != -1 && !mods.hasFlag(JAVA)) {
+            // extract generated fieldDefs and constructor
+            val (defs, (ctor: DefDef) :: body) = tbody.splitAt(iofCtor)
+            val (imports, others) = defs.span(_.isInstanceOf[Import])
+            val (earlyDefs, fieldDefs) = defs.span(treeInfo.isEarlyDef)
+            val (fieldValDefs, fieldAccessorDefs) = fieldDefs.partition(_.isInstanceOf[ValDef])
 
-          // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
-          val vparamssRestoredImplicits = ctor.vparamss match {
-            case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
-            case other => other
+            // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
+            val vparamssRestoredImplicits = ctor.vparamss match {
+              case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
+              case other => other
+            }
+
+            // undo flag modifications by mergeing flag info from constructor args and fieldDefs
+            val modsMap = fieldValDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
+            val vparamss = mmap(vparamssRestoredImplicits) { vd =>
+              val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
+              atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
+            }
+
+            Some((mods, name, tparams, ctor.mods, vparamss, parents, selfdef, earlyDefs ::: body))
+          } else {
+            // bail out of body parsing/reconstruction
+            Some((mods, name, tparams, NoMods, Nil, parents, selfdef, tbody))
           }
-
-          // undo flag modifications by mergeing flag info from constructor args and fieldDefs
-          val modsMap = fieldDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
-          val vparamss = mmap(vparamssRestoredImplicits) { vd =>
-            val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
-            atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
-          }
-
-          Some((mods, name, tparams, ctor.mods, vparamss, parents, selfdef, earlyDefs ::: body))
         case _ =>
           None
       }
