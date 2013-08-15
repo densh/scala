@@ -687,6 +687,7 @@ trait StdNames {
     val moduleClass : NameType         = "moduleClass"
     val mkAnnotationCtor: NameType     = "mkAnnotationCtor"
     val mkVparamss: NameType           = "mkVparamss"
+    val mkTparams: NameType            = "mkTparams"
     val ne: NameType                   = "ne"
     val newArray: NameType             = "newArray"
     val newFreeTerm: NameType          = "newFreeTerm"

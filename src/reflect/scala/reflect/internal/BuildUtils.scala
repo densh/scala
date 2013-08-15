@@ -78,6 +78,9 @@ trait BuildUtils { self: SymbolTable =>
         case vd @ ValDef(mods, _, _, _) => copyValDef(vd)(mods = mods | PARAM | DEFAULTPARAM)
       } }
 
+    def mkTparams(tparams: List[TypeDef]): List[TypeDef] =
+      tparams.map { td => copyTypeDef(td)(mods = (td.mods | PARAM) & (~DEFERRED)) }
+
     object FlagsAsBits extends FlagsAsBitsExtractor {
       def unapply(flags: Long): Some[Long] = Some(flags)
     }

@@ -78,6 +78,8 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def mkVparamss(argss: List[List[ValDef]]): List[List[ValDef]]
 
+    def mkTparams(tparams: List[TypeDef]): List[TypeDef]
+
     val FlagsAsBits: FlagsAsBitsExtractor
 
     trait FlagsAsBitsExtractor {

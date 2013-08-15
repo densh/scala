@@ -90,9 +90,14 @@ trait Reifiers { self: Quasiquotes =>
     }
 
     def reifyClass(tree: Tree) = {
-      val SyntacticClassDef(mods, name, tparams, constrmods, argss, parents, selfval, body) = tree
-      reifyBuildCall(nme.SyntacticClassDef, mods, name, tparams, constrmods, argss, parents, selfval, body)
+      val SyntacticClassDef(mods, name, tparams, constrmods, vparamss, parents, selfval, body) = tree
+      mirrorBuildCall(nme.SyntacticClassDef, reify(mods), reify(name), reifyTparams(tparams), reify(constrmods),
+                                             reifyVparamss(vparamss), reify(parents), reify(selfval), reify(body))
     }
+
+    def reifyVparamss(vparamss: List[List[ValDef]]): Tree = reify(vparamss)
+
+    def reifyTparams(tparams: List[TypeDef]): Tree = reify(tparams)
 
     /** Splits list into a list of groups where subsequent elements are considered
      *  similar by the corresponding function.
@@ -174,9 +179,9 @@ trait Reifiers { self: Quasiquotes =>
         reifyCallWithArgss(f, argss)
       case RefTree(qual, SymbolPlaceholder(tree)) =>
         mirrorBuildCall(nme.RefTree, reify(qual), tree)
-      case DefDef(mods, name, targs, argss, tpt, rhs) =>
-        mirrorCall(nme.DefDef, reify(mods), reify(name), reify(targs),
-                               reifyBuildCall(nme.mkVparamss, argss), reify(tpt), reify(rhs))
+      case DefDef(mods, name, tparams, vparamss, tpt, rhs) =>
+        mirrorCall(nme.DefDef, reify(mods), reify(name), reifyTparams(tparams),
+                               reifyVparamss(vparamss), reify(tpt), reify(rhs))
       case _ =>
         super.reifyTreeSyntactically(tree)
     }
@@ -242,6 +247,10 @@ trait Reifiers { self: Quasiquotes =>
           mirrorFactoryCall(nme.Modifiers, reifiedFlags, reify(m.privateWithin), reifyAnnotList(annots))
       }
     }
+
+    override def reifyVparamss(vparamss: List[List[ValDef]]): Tree = reifyBuildCall(nme.mkVparamss, vparamss)
+
+    override def reifyTparams(tparams: List[TypeDef]): Tree = reifyBuildCall(nme.mkTparams, tparams)
   }
 
   class UnapplyReifier extends Reifier {
