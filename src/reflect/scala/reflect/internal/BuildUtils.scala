@@ -210,9 +210,10 @@ trait BuildUtils { self: SymbolTable =>
     object SyntacticBlock extends SyntacticBlockExtractor {
       def apply(stats: List[Tree]): Tree = gen.mkBlock(stats)
 
-      def unapply(tree: Tree): Some[List[Tree]] = tree match {
+      def unapply(tree: Tree): Option[List[Tree]] = tree match {
         case self.Block(stats, expr) => Some(stats :+ expr)
-        case _ => Some(tree :: Nil)
+        case _ if tree.isTerm => Some(tree :: Nil)
+        case _ => None
       }
     }
 

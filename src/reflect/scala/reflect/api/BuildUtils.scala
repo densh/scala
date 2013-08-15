@@ -122,7 +122,7 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     trait SyntacticBlockExtractor {
       def apply(stats: List[Tree]): Tree
-      def unapply(tree: Tree): Some[List[Tree]]
+      def unapply(tree: Tree): Option[List[Tree]]
     }
 
     val SyntacticNew: SyntacticNewExtractor
