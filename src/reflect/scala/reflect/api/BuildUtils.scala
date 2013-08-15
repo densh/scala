@@ -58,8 +58,6 @@ private[reflect] trait BuildUtils { self: Universe =>
      */
     def setAnnotations[S <: Symbol](sym: S, annots: List[Annotation]): S
 
-    def flagsFromBits(bits: Long): FlagSet
-
     def This(sym: Symbol): Tree
 
     def Select(qualifier: Tree, sym: Symbol): Select
@@ -80,10 +78,11 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def mkTparams(tparams: List[TypeDef]): List[TypeDef]
 
-    val FlagsAsBits: FlagsAsBitsExtractor
+    val FlagsBits: FlagsBitsExtractor
 
-    trait FlagsAsBitsExtractor {
-      def unapply(flags: Long): Option[Long]
+    trait FlagsBitsExtractor {
+      def apply(value: Long): FlagSet
+      def unapply(flags: Long): Some[Long]
     }
 
     val TypeApplied: TypeAppliedExtractor

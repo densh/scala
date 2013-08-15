@@ -47,8 +47,6 @@ trait BuildUtils { self: SymbolTable =>
     def setTypeSignature[S <: Symbol](sym: S, tpe: Type): S =
       sym.setTypeSignature(tpe)
 
-    def flagsFromBits(bits: Long): FlagSet = bits
-
     def This(sym: Symbol): Tree = self.This(sym)
 
     def Select(qualifier: Tree, sym: Symbol): Select = self.Select(qualifier, sym)
@@ -81,7 +79,8 @@ trait BuildUtils { self: SymbolTable =>
     def mkTparams(tparams: List[TypeDef]): List[TypeDef] =
       tparams.map { td => copyTypeDef(td)(mods = (td.mods | PARAM) & (~DEFERRED)) }
 
-    object FlagsAsBits extends FlagsAsBitsExtractor {
+    object FlagsBits extends FlagsBitsExtractor {
+      def apply(bits: Long): FlagSet = bits
       def unapply(flags: Long): Some[Long] = Some(flags)
     }
 

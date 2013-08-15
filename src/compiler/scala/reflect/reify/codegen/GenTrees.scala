@@ -84,7 +84,7 @@ trait GenTrees {
   }
 
   def reifyModifiers(m: global.Modifiers) =
-    mirrorFactoryCall(nme.Modifiers, mirrorBuildCall(nme.flagsFromBits, reify(m.flags)), reify(m.privateWithin), reify(m.annotations))
+    mirrorFactoryCall(nme.Modifiers, mirrorBuildCall(nme.FlagsBits, reify(m.flags)), reify(m.privateWithin), reify(m.annotations))
 
   private def spliceTree(tree: Tree): Tree = {
     tree match {

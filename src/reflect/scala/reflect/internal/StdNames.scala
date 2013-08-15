@@ -570,7 +570,7 @@ trait StdNames {
     val EmptyPackageClass: NameType    = "EmptyPackageClass"
     val False : NameType               = "False"
     val Flag : NameType                = "Flag"
-    val FlagsAsBits: NameType          = "FlagsAsBits"
+    val FlagsBits: NameType            = "FlagsBits"
     val FunctionType: NameType         = "FunctionType"
     val Ident: NameType                = "Ident"
     val Import: NameType               = "Import"
