@@ -69,11 +69,11 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
   }
 
   property("splice trees into block") = forAll { (t1: Tree, t2: Tree, t3: Tree) =>
-    q"""{
+    blockInvariant(q"""{
       $t1
       $t2
       $t3
-    }""" ≈ Block(List(t1, t2), t3)
+    }""", List(t1, t2, t3))
   }
 
   property("splice type name into class parents") = forAll { (name: TypeName, parent: TypeName) =>
@@ -230,22 +230,24 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
         AppliedTypeTree(Ident(T2), args))
   }
 
-  property("splice list of trees into block (1)") = forAll { (trees: List[Tree]) =>
-    q"{ ..$trees }" ≈ (trees match {
-      case Nil => Block(Nil, q"()")
-      case _   => Block(trees.init, trees.last)
+  def blockInvariant(quote: Tree, trees: List[Tree]) =
+    quote ≈ (trees match {
+      case Nil => q"()"
+      case _ :+ last if !last.isTerm => Block(trees, q"()")
+      case head :: Nil => head
+      case init :+ last => Block(init, last)
     })
+
+  property("splice list of trees into block (1)") = forAll { (trees: List[Tree]) =>
+    blockInvariant(q"{ ..$trees }", trees)
   }
 
   property("splice list of trees into block (2)") = forAll { (trees1: List[Tree], trees2: List[Tree]) =>
-    q"{ ..$trees1 ; ..$trees2 }" ≈ ((trees1 ++ trees2) match {
-      case Nil   => Block(Nil, Literal(Constant(())))
-      case trees => Block(trees.init, trees.last)
-    })
+    blockInvariant(q"{ ..$trees1 ; ..$trees2 }", trees1 ++ trees2)
   }
 
   property("splice list of trees into block (3)") = forAll { (trees: List[Tree], tree: Tree) =>
-    q"{ ..$trees; $tree }" ≈ Block(trees, tree)
+    blockInvariant(q"{ ..$trees; $tree }", trees :+ tree)
   }
 
   def assertSameAnnots(tree: {def mods: Modifiers}, annots: List[Tree]) =

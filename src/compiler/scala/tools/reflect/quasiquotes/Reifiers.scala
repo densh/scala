@@ -53,7 +53,7 @@ trait Reifiers { self: Quasiquotes =>
 
     override def reifyTreeSyntactically(tree: Tree) = tree match {
       case build.SyntacticNew(parents, selfdef, body) => reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
-      case Block(stats, expr) => reifyBuildCall(nme.Block, stats :+ expr)
+      case Block(stats, expr) => reifyBuildCall(nme.SyntacticBlock, stats :+ expr)
       case _ => super.reifyTreeSyntactically(tree)
     }
 

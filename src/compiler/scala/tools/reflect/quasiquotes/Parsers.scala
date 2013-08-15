@@ -83,6 +83,11 @@ trait Parsers { self: Quasiquotes =>
         } else
           super.caseClause()
 
+      override def caseBlock(): Tree = super.caseBlock() match {
+        case Block(Nil, expr) => expr
+        case other => other
+      }
+
       def isHole: Boolean = isIdent && holeMap.contains(in.name)
 
       override def isAnnotation: Boolean = super.isAnnotation || (isHole && lookingAhead { isAnnotation })
@@ -109,7 +114,7 @@ trait Parsers { self: Quasiquotes =>
         case AT =>
           in.nextToken()
           annot :: readAnnots(annot)
-        case _ if isHole && lookingAhead { in.token == AT || isModifier || isDefIntro || isIdent} =>
+        case _ if isHole && lookingAhead { in.token == AT || isModifier || isDefIntro || isIdent } =>
           val ann = Apply(Select(New(Ident(tpnme.QUASIQUOTE_MODS)), nme.CONSTRUCTOR), List(Literal(Constant(in.name.toString))))
           in.nextToken()
           ann :: readAnnots(annot)

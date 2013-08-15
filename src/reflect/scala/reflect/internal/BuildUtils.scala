@@ -207,12 +207,8 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
-    object Block extends BlockExtractor {
-      def apply(stats: List[Tree]): Block = stats match {
-        case Nil => self.Block(Nil, Literal(Constant(())))
-        case elem :: Nil => self.Block(Nil, elem)
-        case elems => self.Block(elems.init, elems.last)
-      }
+    object SyntacticBlock extends SyntacticBlockExtractor {
+      def apply(stats: List[Tree]): Tree = gen.mkBlock(stats)
 
       def unapply(tree: Tree): Some[List[Tree]] = tree match {
         case self.Block(stats, expr) => Some(stats :+ expr)

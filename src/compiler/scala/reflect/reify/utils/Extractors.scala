@@ -175,10 +175,10 @@ trait Extractors {
           ValDef(_, name, _, Apply(
             Select(Select(uref1 @ Ident(_), build1), freeTermFactory),
             _ :+
-            Apply(Select(Select(uref2 @ Ident(_), build2), FlagsBits), List(Literal(Constant(flags: Long)))) :+
+            Apply(Select(Select(uref2 @ Ident(_), build2), flagsBits), List(Literal(Constant(flags: Long)))) :+
             Literal(Constant(origin: String))))
         if uref1.name == nme.UNIVERSE_SHORT && build1 == nme.build && acceptFreeTermFactory(freeTermFactory) &&
-           uref2.name == nme.UNIVERSE_SHORT && build2 == nme.build && FlagsBits == nme.FlagsBits =>
+           uref2.name == nme.UNIVERSE_SHORT && build2 == nme.build && flagsBits == nme.FlagsBits =>
           Some((uref1, name, reifyBinding(tree), flags, origin))
         case _ =>
           None
@@ -208,10 +208,10 @@ trait Extractors {
             _,
             _,
             _,
-            Apply(Select(Select(uref2 @ Ident(_), build2), FlagsBits), List(Literal(Constant(flags: Long)))),
+            Apply(Select(Select(uref2 @ Ident(_), build2), flagsBits), List(Literal(Constant(flags: Long)))),
             Literal(Constant(isClass: Boolean)))))
       if uref1.name == nme.UNIVERSE_SHORT && build1 == nme.build && newNestedSymbol == nme.newNestedSymbol &&
-         uref2.name == nme.UNIVERSE_SHORT && build2 == nme.build && FlagsBits == nme.FlagsBits =>
+         uref2.name == nme.UNIVERSE_SHORT && build2 == nme.build && flagsBits == nme.FlagsBits =>
         Some((uref1, name, flags, isClass))
       case _ =>
         None

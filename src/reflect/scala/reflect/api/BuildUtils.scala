@@ -118,10 +118,10 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def RefTree(qual: Tree, sym: Symbol): Tree
 
-    val Block: BlockExtractor
+    val SyntacticBlock: SyntacticBlockExtractor
 
-    trait BlockExtractor {
-      def apply(stats: List[Tree]): Block
+    trait SyntacticBlockExtractor {
+      def apply(stats: List[Tree]): Tree
       def unapply(tree: Tree): Some[List[Tree]]
     }
 
