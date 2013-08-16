@@ -134,4 +134,11 @@ trait Placeholders { self: Quasiquotes =>
       case _ => None
     }
   }
+
+  object RefineStatPlaceholder {
+    def unapply(tree: Tree): Option[(Tree, Location, Cardinality)] = tree match {
+      case ValDef(_, Placeholder(tree, location, card), Ident(tpnme.QUASIQUOTE_REFINE_STAT), _) => Some((tree, location, card))
+      case _ => None
+    }
+  }
 }

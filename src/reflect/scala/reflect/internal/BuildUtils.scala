@@ -79,6 +79,18 @@ trait BuildUtils { self: SymbolTable =>
     def mkTparams(tparams: List[TypeDef]): List[TypeDef] =
       tparams.map { td => copyTypeDef(td)(mods = (td.mods | PARAM) & (~DEFERRED)) }
 
+    def mkRefineStat(stat: Tree): Tree = {
+      stat match {
+        case dd: DefDef => require(dd.rhs.isEmpty, "can't use DefDef with non-empty body as refine stat")
+        case vd: ValDef => require(vd.rhs.isEmpty, "can't use ValDef with non-empty rhs as refine stat")
+        case td: TypeDef =>
+        case _ => require(false, s"not legal refine stat: $stat")
+      }
+      stat
+    }
+
+    def mkRefineStat(stats: List[Tree]): List[Tree] = stats.map(mkRefineStat)
+
     object FlagsBits extends FlagsBitsExtractor {
       def apply(bits: Long): FlagSet = bits
       def unapply(flags: Long): Some[Long] = Some(flags)

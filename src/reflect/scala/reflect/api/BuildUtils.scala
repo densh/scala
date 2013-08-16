@@ -78,6 +78,10 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def mkTparams(tparams: List[TypeDef]): List[TypeDef]
 
+    def mkRefineStat(stat: Tree): Tree
+
+    def mkRefineStat(stat: List[Tree]): List[Tree]
+
     val FlagsBits: FlagsBitsExtractor
 
     trait FlagsBitsExtractor {

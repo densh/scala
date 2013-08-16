@@ -47,8 +47,11 @@ trait Reifiers { self: Quasiquotes =>
       case TupleTypePlaceholder(args) => reifyTupleType(args)
       case FunctionTypePlaceholder(argtpes, restpe) => reifyBuildCall(nme.FunctionType, argtpes, restpe)
       case CasePlaceholder(tree, location, _) => reifyCase(tree, location)
+      case RefineStatPlaceholder(tree, _, _) => reifyRefineStat(tree)
       case _ => EmptyTree
     }
+
+    def reifyRefineStat(tree: Tree) = mirrorBuildCall(nme.mkRefineStat, tree)
 
     override def reifyTreeSyntactically(tree: Tree) = tree match {
       case SyntacticNew(parents, selfdef, body) =>
@@ -152,6 +155,7 @@ trait Reifiers { self: Quasiquotes =>
     override def reifyList(xs: List[Any]): Tree = reifyMultiCardinalityList(xs) {
       case Placeholder(tree, _, DotDot) => tree
       case CasePlaceholder(tree, _, DotDot) => tree
+      case RefineStatPlaceholder(tree, _, DotDot) => reifyRefineStat(tree)
       case List(Placeholder(tree, _, DotDotDot)) => tree
     } {
       reify(_)

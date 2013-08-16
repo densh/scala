@@ -45,7 +45,13 @@ abstract class Quasiquotes extends Parsers
     val tree = parse(code)
     debug(s"parsed:\n${showRaw(tree)}\n$tree\n")
     val reified = reify(tree)
-    debug(s"reified tree:\n$reified\n")
+    val reifiedStr =
+      reified.toString.
+        replace("scala.reflect.runtime.`package`.universe.build.", "").
+        replace("scala.reflect.runtime.`package`.universe.", "").
+        replace("scala.collection.immutable.List.apply", "List").
+        replace("scala.collection.immutable.List.unapply", "List")
+    debug(s"reified tree:\n$reifiedStr\n")
     reified
   }
 }
