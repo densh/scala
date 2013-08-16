@@ -2704,8 +2704,7 @@ self =>
             syntaxError("classes are not allowed to be virtual", skipIt = false)
           }
           val template = templateOpt(mods1, name, constrMods withAnnotations constrAnnots, vparamss, tstart)
-          if (isInterface(mods1, template.body)) mods1 |= Flags.INTERFACE
-          val result = ClassDef(mods1, name, tparams, template)
+          val result = gen.mkClassDef(mods1, name, tparams, template)
           // Context bounds generate implicit parameters (part of the template) with types
           // from tparams: we need to ensure these don't overlap
           if (!classContextBounds.isEmpty)
@@ -2820,9 +2819,6 @@ self =>
         (parents, self, body)
       }
     }
-
-    def isInterface(mods: Modifiers, body: List[Tree]): Boolean =
-      mods.isTrait && (body forall treeInfo.isInterfaceMember)
 
     /** {{{
      *  ClassTemplateOpt ::= `extends' ClassTemplate | [[`extends'] TemplateBody]

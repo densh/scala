@@ -112,12 +112,13 @@ trait BuildUtils { self: SymbolTable =>
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
                 constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
                 selfdef: ValDef, body: List[Tree]): ClassDef =
-        ClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, body, NoPosition))
+        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, body, NoPosition))
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
                                        List[List[ValDef]], List[Tree], ValDef, List[Tree])] = tree match {
         case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody))
-          if tbody.collect { case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => }.nonEmpty && !mods.hasFlag(JAVA) =>
+          if tbody.collect { case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => }.nonEmpty
+          && !mods.hasFlag(JAVA) && !mods.isTrait =>
 
           // extract generated fieldDefs and constructor
           val (defs, (ctor: DefDef) :: body) = tbody.splitAt(tbody.indexWhere {
@@ -148,9 +149,19 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object SyntacticTraitDef extends SyntacticTraitDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef], parents: List[Tree], selfdef: ValDef, body: List[Tree]) = ???
+      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef =
+        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, Modifiers(Flags.TRAIT), Nil, body, NoPosition))
 
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])] = ???
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])] = tree match {
+        case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody)) if mods.isTrait =>
+          val body = tbody.filter {
+            case DefDef(_, nme.MIXIN_CONSTRUCTOR, _, _, _, _) => false
+            case _ => true
+          }
+          Some((mods, name, tparams, parents, selfdef, body))
+        case _ => None
+      }
     }
 
     object TupleN extends TupleNExtractor {

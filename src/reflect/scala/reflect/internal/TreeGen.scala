@@ -379,6 +379,12 @@ abstract class TreeGen extends macros.TreeBuilder {
     global.Template(parents, self, gvdefs ::: fieldDefs ::: constrs ::: etdefs ::: rest)
   }
 
+  def mkClassDef(mods: Modifiers, name: TypeName, tparams: List[TypeDef], templ: Template): ClassDef = {
+    val isInterface = mods.isTrait && (templ.body forall treeInfo.isInterfaceMember)
+    val mods1 = if (isInterface) (mods | Flags.INTERFACE) else mods
+    ClassDef(mods1, name, tparams, templ)
+  }
+
   /** Create positioned tree representing an object creation <new parents { stats }
    *  @param npos  the position of the new
    *  @param cpos  the position of the anonymous class starting with parents

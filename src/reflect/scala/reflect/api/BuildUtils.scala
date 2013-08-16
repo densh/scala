@@ -111,7 +111,8 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticTraitDef: SyntacticTraitDefExtractor
 
     trait SyntacticTraitDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef], parents: List[Tree], selfdef: ValDef, body: List[Tree])
+      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])]
     }
 
