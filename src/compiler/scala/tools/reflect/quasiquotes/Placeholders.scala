@@ -12,6 +12,7 @@ import scala.collection.{immutable, mutable}
  */
 trait Placeholders { self: Quasiquotes =>
   import global._
+  import global.build.{SyntacticClassDef, SyntacticTraitDef}
   import Cardinality._
 
   // Step 1: Transform Scala source with holes into vanilla Scala source
@@ -130,13 +131,6 @@ trait Placeholders { self: Quasiquotes =>
   object CasePlaceholder {
     def unapply(tree: Tree): Option[(Tree, Location, Cardinality)] = tree match {
       case CaseDef(Apply(Ident(nme.QUASIQUOTE_CASE), List(Placeholder(tree, location, card))), EmptyTree, EmptyTree) => Some((tree, location, card))
-      case _ => None
-    }
-  }
-
-  object ClassPlaceholder {
-    def unapply(tree: Tree): Option[Tree] = tree match {
-      case ClassDef(_, _, _, _) => Some(tree)
       case _ => None
     }
   }

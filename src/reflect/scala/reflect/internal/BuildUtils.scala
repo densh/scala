@@ -147,6 +147,12 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
+    object SyntacticTraitDef extends SyntacticTraitDefExtractor {
+      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef], parents: List[Tree], selfdef: ValDef, body: List[Tree]) = ???
+
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])] = ???
+    }
+
     object TupleN extends TupleNExtractor {
       def apply(args: List[Tree]): Tree = args match {
         case Nil      => Literal(Constant(()))
