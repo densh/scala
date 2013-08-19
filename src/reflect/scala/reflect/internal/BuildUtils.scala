@@ -178,11 +178,26 @@ trait BuildUtils { self: SymbolTable =>
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])] = tree match {
         case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody)) if mods.isTrait =>
-          val body = tbody.filter {
-            case DefDef(_, nme.MIXIN_CONSTRUCTOR, _, _, _, _) => false
-            case _ => true
-          }
-          Some((mods, name, tparams, parents, selfdef, body))
+
+          val (earlyValDefs, rest: List[Tree]) = tbody.span(treeInfo.isEarlyValDef)
+
+          val (ctor: Tree, ctorFreeBody: List[Tree]) =
+            rest match {
+              case (ctor @ DefDef(_, nme.MIXIN_CONSTRUCTOR, _, _, _, _)) :: rest => (ctor, rest)
+              case elems => (EmptyTree, elems)
+            }
+
+          val recoveredEarlyDefs: List[Tree] =
+            if (earlyValDefs.isEmpty) Nil
+            else {
+              val DefDef(_, _, _, _, _, SyntacticBlock(lvdefs :+ _)) = ctor
+              earlyValDefs.zip(lvdefs).map {
+                case (evdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
+                  copyValDef(evdef)(tpt = tpt.original, rhs = rhs)
+              }
+            }
+
+          Some((mods, name, tparams, parents, selfdef, recoveredEarlyDefs ::: ctorFreeBody))
         case _ => None
       }
     }

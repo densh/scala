@@ -32,4 +32,8 @@ object DefinitionConstructionProps extends QuasiquoteProperties("definition cons
     val x = q"val x: Int = 1"
     assert(q"trait T extends { $x } with Any" ≈ parse("trait T extends { val x: Int = 1} with Any"))
   }
+
+  property("construct trait with valdefs") = test {
+    assert(q"trait T extends { val x: Int = 1 } with Any" ≈ parse("trait T extends { val x: Int = 1 } with Any"))
+  }
 }
