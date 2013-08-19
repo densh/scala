@@ -84,12 +84,23 @@ trait BuildUtils { self: SymbolTable =>
         case dd: DefDef => require(dd.rhs.isEmpty, "can't use DefDef with non-empty body as refine stat")
         case vd: ValDef => require(vd.rhs.isEmpty, "can't use ValDef with non-empty rhs as refine stat")
         case td: TypeDef =>
-        case _ => require(false, s"not legal refine stat: $stat")
+        case _ => throw new IllegalArgumentException(s"not legal refine stat: $stat")
       }
       stat
     }
 
     def mkRefineStat(stats: List[Tree]): List[Tree] = stats.map(mkRefineStat)
+
+    def mkEarlyDef(defn: Tree): Tree = defn match {
+      case vdef @ ValDef(mods, _, _, _) if !mods.isDeferred =>
+        copyValDef(vdef)(mods = mods | Flags.PRESUPER)
+      case tdef @ TypeDef(mods, _, _, _) =>
+        copyTypeDef(tdef)(mods =  mods | Flags.PRESUPER)
+      case _ =>
+        throw new IllegalArgumentException(s"not legal early def: $defn")
+    }
+
+    def mkEarlyDef(defns: List[Tree]): List[Tree] = defns.map(mkEarlyDef)
 
     object FlagsBits extends FlagsBitsExtractor {
       def apply(bits: Long): FlagSet = bits

@@ -1,6 +1,6 @@
 import scala.reflect.runtime.universe._
-import scala.tools.reflect.ToolBox
-import scala.tools.reflect.ToolBoxError
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.{ToolBox, ToolBoxError}
 import scala.reflect.macros.TypecheckException
 
 import org.scalacheck._
@@ -57,6 +57,11 @@ trait Helpers {
       assert(false, "exception wasn't thrown")
   }
 
+  val toolbox = currentMirror.mkToolBox()
+  val parse = toolbox.parse(_)
+  val compile = toolbox.compile(_)
+  val eval = toolbox.eval(_)
+
   def fails(msg: String, block: String) = {
     def result(ok: Boolean, description: String = "") = {
       val status = if (ok) Prop.Proof else Prop.False
@@ -64,14 +69,12 @@ trait Helpers {
       Prop { new Prop.Result(status, Nil, Set.empty, labels) }
     }
     try {
-      val tb = rootMirror.mkToolBox()
-      val tree = tb.parse(s"""
+      compile(parse(s"""
         object Wrapper extends Helpers {
           import scala.reflect.runtime.universe._
           $block
         }
-      """)
-      tb.compile(tree)
+      """))
       result(false, "given code doesn't fail to typecheck")
     } catch {
       case ToolBoxError(emsg, _) =>

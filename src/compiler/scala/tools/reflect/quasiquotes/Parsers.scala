@@ -128,6 +128,11 @@ trait Parsers { self: Quasiquotes =>
           in.nextToken()
           result
         } else super.refineStat()
+
+      override def earlyDefMapper(tree: Tree): Option[Tree] = tree match {
+        case Ident(name: TermName) if holeMap.contains(name) => Some(ValDef(NoMods, name, Ident(tpnme.QUASIQUOTE_EARLY_DEF), EmptyTree))
+        case _ => super.earlyDefMapper(tree)
+      }
     }
   }
 

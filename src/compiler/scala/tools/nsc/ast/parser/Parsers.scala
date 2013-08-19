@@ -2795,17 +2795,7 @@ self =>
         // @S: pre template body cannot stub like post body can!
         val (self, body) = templateBody(isPre = true)
         if (in.token == WITH && (self eq emptyValDef)) {
-          val earlyDefs: List[Tree] = body flatMap {
-            case vdef @ ValDef(mods, _, _, _) if !mods.isDeferred =>
-              List(copyValDef(vdef)(mods = mods | Flags.PRESUPER))
-            case tdef @ TypeDef(mods, name, tparams, rhs) =>
-              deprecationWarning(tdef.pos.point, "early type definitions are deprecated, move them to the regular body instead")
-              List(treeCopy.TypeDef(tdef, mods | Flags.PRESUPER, name, tparams, rhs))
-            case stat if !stat.isEmpty =>
-              syntaxError(stat.pos, "only concrete field definitions allowed in early object initialization section", skipIt = false)
-              List()
-            case _ => List()
-          }
+          val earlyDefs: List[Tree] = body.flatMap(earlyDefMapper)
           in.nextToken()
           val parents = templateParents()
           val (self1, body1) = templateBodyOpt(parenMeansSyntaxError = false)
@@ -2818,6 +2808,18 @@ self =>
         val (self, body) = templateBodyOpt(parenMeansSyntaxError = false)
         (parents, self, body)
       }
+    }
+
+    def earlyDefMapper(tree: Tree): Option[Tree] = tree match {
+      case vdef @ ValDef(mods, _, _, _) if !mods.isDeferred =>
+        Some(copyValDef(vdef)(mods = mods | Flags.PRESUPER))
+      case tdef @ TypeDef(mods, name, tparams, rhs) =>
+        deprecationWarning(tdef.pos.point, "early type definitions are deprecated, move them to the regular body instead")
+        Some(treeCopy.TypeDef(tdef, mods | Flags.PRESUPER, name, tparams, rhs))
+      case stat if !stat.isEmpty =>
+        syntaxError(stat.pos, "only concrete field definitions allowed in early object initialization section", skipIt = false)
+        None
+       case _ => None
     }
 
     /** {{{

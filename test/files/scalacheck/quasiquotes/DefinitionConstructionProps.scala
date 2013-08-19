@@ -6,7 +6,7 @@ import Arbitrary._
 import scala.reflect.runtime.universe._
 import Flag._
 
-object DefinitionConstructionProps extends QuasiquoteProperties("errors") {
+object DefinitionConstructionProps extends QuasiquoteProperties("definition construction") {
 
   property("splice name into trait def") = test {
     val Foo = TypeName("Foo")
@@ -30,6 +30,6 @@ object DefinitionConstructionProps extends QuasiquoteProperties("errors") {
 
   property("splice early valdef into trait") = test {
     val x = q"val x: Int = 1"
-    assert(q"trait T extends { val $x } with Any" ≈ q"trait T extends { val x: Int = 1} with Any")
+    assert(q"trait T extends { $x } with Any" ≈ parse("trait T extends { val x: Int = 1} with Any"))
   }
 }

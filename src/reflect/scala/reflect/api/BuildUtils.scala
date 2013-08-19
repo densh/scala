@@ -82,6 +82,10 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def mkRefineStat(stat: List[Tree]): List[Tree]
 
+    def mkEarlyDef(defn: Tree): Tree
+
+    def mkEarlyDef(defns: List[Tree]): List[Tree]
+
     val FlagsBits: FlagsBitsExtractor
 
     trait FlagsBitsExtractor {
