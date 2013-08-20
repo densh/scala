@@ -59,12 +59,13 @@ trait Reifiers { self: Quasiquotes =>
     override def reifyTreeSyntactically(tree: Tree) = tree match {
       case SyntacticNew(parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
-      case SyntacticTraitDef(mods, name, tparams, parents, selfval, body) =>
+      case SyntacticTraitDef(mods, name, tparams, parents, selfval, earlyDefs, body) =>
         mirrorBuildCall(nme.SyntacticTraitDef, reify(mods), reify(name), reifyTparams(tparams),
-                                               reify(parents), reify(selfval), reify(body))
-      case SyntacticClassDef(mods, name, tparams, constrmods, vparamss, parents, selfval, body) =>
+                                               reify(parents), reify(selfval), reify(earlyDefs), reify(body))
+      case SyntacticClassDef(mods, name, tparams, constrmods, vparamss, parents, selfval, earlyDefs, body) =>
         mirrorBuildCall(nme.SyntacticClassDef, reify(mods), reify(name), reifyTparams(tparams), reify(constrmods),
-                                               reifyVparamss(vparamss), reify(parents), reify(selfval), reify(body))
+                                               reifyVparamss(vparamss), reify(parents), reify(selfval),
+                                               reify(earlyDefs), reify(body))
       case Block(stats, expr) =>
         reifyBuildCall(nme.SyntacticBlock, stats :+ expr)
       case _ => super.reifyTreeSyntactically(tree)
