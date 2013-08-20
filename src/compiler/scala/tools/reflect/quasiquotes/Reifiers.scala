@@ -52,10 +52,6 @@ trait Reifiers { self: Quasiquotes =>
       case _ => EmptyTree
     }
 
-    def reifyRefineStat(tree: Tree) = mirrorBuildCall(nme.mkRefineStat, tree)
-
-    def reifyEarlyDef(tree: Tree) = mirrorBuildCall(nme.mkEarlyDef, tree)
-
     override def reifyTreeSyntactically(tree: Tree) = tree match {
       case SyntacticNew(parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
@@ -106,6 +102,10 @@ trait Reifiers { self: Quasiquotes =>
     def reifyVparamss(vparamss: List[List[ValDef]]): Tree = reify(vparamss)
 
     def reifyTparams(tparams: List[TypeDef]): Tree = reify(tparams)
+
+    def reifyRefineStat(tree: Tree) = tree
+
+    def reifyEarlyDef(tree: Tree) = tree
 
     /** Splits list into a list of groups where subsequent elements are considered
      *  similar by the corresponding function.
@@ -266,6 +266,10 @@ trait Reifiers { self: Quasiquotes =>
 
     override def reifyTparams(tparams: List[TypeDef]): Tree =
       if (tparams.nonEmpty) reifyBuildCall(nme.mkTparams, tparams) else mkList(Nil)
+
+    override def reifyRefineStat(tree: Tree) = mirrorBuildCall(nme.mkRefineStat, tree)
+
+    override def reifyEarlyDef(tree: Tree) = mirrorBuildCall(nme.mkEarlyDef, tree)
   }
 
   class UnapplyReifier extends Reifier {
