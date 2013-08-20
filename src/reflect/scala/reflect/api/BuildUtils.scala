@@ -111,17 +111,18 @@ private[reflect] trait BuildUtils { self: Universe =>
     trait SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
                 constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, body: List[Tree]): ClassDef
+                selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
-                                       List[List[ValDef]], List[Tree], ValDef, List[Tree])]
+                                       List[List[ValDef]], List[Tree], ValDef, List[Tree], List[Tree])]
     }
 
     val SyntacticTraitDef: SyntacticTraitDefExtractor
 
     trait SyntacticTraitDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])]
+                parents: List[Tree], selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree], List[Tree])]
+
     }
 
     val TupleN: TupleNExtractor

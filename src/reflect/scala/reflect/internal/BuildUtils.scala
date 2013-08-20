@@ -123,7 +123,7 @@ trait BuildUtils { self: SymbolTable =>
 
     object Applied extends AppliedExtractor {
       def apply(tree: Tree, argss: List[List[Tree]]): Tree =
-        argss.foldLeft(tree) { (tree, args) => Apply(tree, args) }
+        argss.foldLeft(tree) { Apply(_, _) }
 
       def unapply(tree: Tree): Some[(Tree, List[List[Tree]])] = {
         val treeInfo.Applied(fun, targs, argss) = tree
@@ -131,41 +131,62 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
+    private object UnCtor {
+      def unapply(tree: Tree): Option[(Modifiers, List[List[ValDef]], List[Tree])] = tree match {
+        case DefDef(mods, nme.MIXIN_CONSTRUCTOR, _, _, _, Block(lvdefs, _)) =>
+          Some(mods | Flag.TRAIT, Nil, lvdefs)
+        case DefDef(mods, nme.CONSTRUCTOR, Nil, vparamss, _, Block(lvdefs :+ _, _)) =>
+          Some(mods, vparamss, lvdefs)
+        case _ => None
+      }
+    }
+
+    private object UnMkTemplate {
+      def unapply(templ: Template): Option[(List[Tree], ValDef, Modifiers, List[List[ValDef]], List[Tree], List[Tree])] = {
+        val Template(parents, selfdef, tbody) = templ
+        val (pre, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) = tbody.splitAt(tbody.indexWhere {
+          case UnCtor(_, _, _) => true
+          case _ => false
+        })
+
+        val (gvdefs, fieldDefs) = pre.span(treeInfo.isEarlyDef)
+
+        val evdefs = gvdefs.zip(lvdefs).map {
+          case (gvdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
+            copyValDef(gvdef)(tpt = tpt.original, rhs = rhs)
+        }
+
+        val vparamss =
+          if (ctorMods.isTrait) Nil
+          else {
+            // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
+            val vparamssRestoredImplicits = ctorVparamss match {
+              case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
+              case other => other
+            }
+            // undo flag modifications by mergeing flag info from constructor args and fieldDefs
+            val modsMap = fieldDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
+            mmap(vparamssRestoredImplicits) { vd =>
+              val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
+              atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
+            }
+          }
+
+        Some((parents, selfdef, ctorMods, vparamss, evdefs, body))
+      }
+    }
+
     object SyntacticClassDef extends SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
                 constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, body: List[Tree]): ClassDef =
-        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, body, NoPosition))
+                selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef =
+        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, earlyDefs ::: body, NoPosition))
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
-                                       List[List[ValDef]], List[Tree], ValDef, List[Tree])] = tree match {
-        case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody))
-          if tbody.collect { case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => }.nonEmpty
-          && !mods.hasFlag(JAVA) && !mods.isTrait =>
-
-          // extract generated fieldDefs and constructor
-          val (defs, (ctor: DefDef) :: body) = tbody.splitAt(tbody.indexWhere {
-            case DefDef(_, nme.CONSTRUCTOR, _, _, _, _) => true
-            case _ => false
-          })
-          val (imports, others) = defs.span(_.isInstanceOf[Import])
-          val (earlyDefs, fieldDefs) = defs.span(treeInfo.isEarlyDef)
-          val (fieldValDefs, fieldAccessorDefs) = fieldDefs.partition(_.isInstanceOf[ValDef])
-
-          // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
-          val vparamssRestoredImplicits = ctor.vparamss match {
-            case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
-            case other => other
-          }
-
-          // undo flag modifications by mergeing flag info from constructor args and fieldDefs
-          val modsMap = fieldValDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
-          val vparamss = mmap(vparamssRestoredImplicits) { vd =>
-            val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
-            atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
-          }
-
-          Some((mods, name, tparams, ctor.mods, vparamss, parents, selfdef, earlyDefs ::: body))
+                                       List[List[ValDef]], List[Tree], ValDef, List[Tree], List[Tree])] = tree match {
+        case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
+          if !ctorMods.isTrait =>
+          Some((mods, name, tparams, ctorMods, vparamss, parents, selfdef, earlyDefs, body))
         case _ =>
           None
       }
@@ -173,31 +194,13 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticTraitDef extends SyntacticTraitDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef =
-        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, Modifiers(Flags.TRAIT), Nil, body, NoPosition))
+                parents: List[Tree], selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef =
+        gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, Modifiers(Flags.TRAIT), Nil, earlyDefs ::: body, NoPosition))
 
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree])] = tree match {
-        case ClassDef(mods, name, tparams, Template(parents, selfdef, tbody)) if mods.isTrait =>
-
-          val (earlyValDefs, rest: List[Tree]) = tbody.span(treeInfo.isEarlyValDef)
-
-          val (ctor: Tree, ctorFreeBody: List[Tree]) =
-            rest match {
-              case (ctor @ DefDef(_, nme.MIXIN_CONSTRUCTOR, _, _, _, _)) :: rest => (ctor, rest)
-              case elems => (EmptyTree, elems)
-            }
-
-          val recoveredEarlyDefs: List[Tree] =
-            if (earlyValDefs.isEmpty) Nil
-            else {
-              val DefDef(_, _, _, _, _, SyntacticBlock(lvdefs :+ _)) = ctor
-              earlyValDefs.zip(lvdefs).map {
-                case (evdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
-                  copyValDef(evdef)(tpt = tpt.original, rhs = rhs)
-              }
-            }
-
-          Some((mods, name, tparams, parents, selfdef, recoveredEarlyDefs ::: ctorFreeBody))
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree], List[Tree])] = tree match {
+        case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
+          if ctorMods.isTrait =>
+          Some((mods, name, tparams, parents, selfdef, earlyDefs, body))
         case _ => None
       }
     }
@@ -285,7 +288,7 @@ trait BuildUtils { self: SymbolTable =>
       def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])] = tree match {
         case Applied(Select(New(TypeApplied(ident, targs)), nme.CONSTRUCTOR), argss) =>
           Some((Applied(TypeApplied(ident, targs), argss) :: Nil, emptyValDef, Nil))
-        case self.Block(List(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, List(Nil), parents, selfdef, body)),
+        case self.Block(List(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, List(Nil), parents, selfdef, _, body)),
                         Apply(Select(New(Ident(tpnme.ANON_CLASS_NAME)), nme.CONSTRUCTOR), Nil)) =>
           Some((parents, selfdef, body))
         case _ =>
