@@ -168,8 +168,12 @@ trait Reifiers { self: Quasiquotes =>
 
     def reifyAnnotList(annots: List[Tree]): Tree
 
-    def ensureNoExplicitFlags(m: Modifiers, pos: Position) =
-      if ((m.flags & ExplicitFlags) != 0L) c.abort(pos, s"Can't $action modifiers together with flags, consider merging flags into modifiers")
+    val quasiExplicitFlags = ExplicitFlags & ~MUTABLE & ~TRAIT
+
+    def ensureNoExplicitFlags(m: Modifiers, pos: Position) = {
+      val flags = if (m.isTrait) m.flags & ~ABSTRACT else m.flags
+      if ((flags & quasiExplicitFlags) != 0L) c.abort(pos, s"Can't $action modifiers together with flags, consider merging flags into modifiers")
+    }
 
     override def mirrorSelect(name: String): Tree =
       Select(universe, TermName(name))
