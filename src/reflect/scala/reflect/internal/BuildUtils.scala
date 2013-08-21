@@ -184,15 +184,15 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticClassDef extends SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef =
+                constrMods: Modifiers, vparamss: List[List[ValDef]], earlyDefs: List[Tree],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef =
         gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, constrMods, vparamss, earlyDefs ::: body, NoPosition))
 
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
-                                       List[List[ValDef]], List[Tree], ValDef, List[Tree], List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers, List[List[ValDef]],
+                                       List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
         case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
           if !ctorMods.isTrait =>
-          Some((mods, name, tparams, ctorMods, vparamss, parents, selfdef, earlyDefs, body))
+          Some((mods, name, tparams, ctorMods, vparamss, earlyDefs, parents, selfdef, body))
         case _ =>
           None
       }
@@ -200,13 +200,14 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticTraitDef extends SyntacticTraitDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                parents: List[Tree], selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef =
+                earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef =
         gen.mkClassDef(mods, name, tparams, gen.mkTemplate(parents, selfdef, Modifiers(Flags.TRAIT), Nil, earlyDefs ::: body, NoPosition))
 
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree], List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef],
+                                       List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
         case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
           if mods.isTrait =>
-          Some((mods, name, tparams, parents, selfdef, earlyDefs, body))
+          Some((mods, name, tparams, earlyDefs, parents, selfdef, body))
         case _ => None
       }
     }
@@ -301,15 +302,15 @@ trait BuildUtils { self: SymbolTable =>
     def RefTree(qual: Tree, sym: Symbol) = self.RefTree(qual, sym.name) setSymbol sym
 
     object SyntacticNew extends SyntacticNewExtractor {
-      def apply(parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree =
-        gen.mkNew(parents, selfdef, body, NoPosition, NoPosition)
+      def apply(earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree =
+        gen.mkNew(parents, selfdef, earlyDefs ::: body, NoPosition, NoPosition)
 
-      def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
         case Applied(Select(New(TypeApplied(ident, targs)), nme.CONSTRUCTOR), argss) =>
-          Some((Applied(TypeApplied(ident, targs), argss) :: Nil, emptyValDef, Nil))
-        case self.Block(List(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, List(Nil), parents, selfdef, _, body)),
+          Some((Nil, Applied(TypeApplied(ident, targs), argss) :: Nil, emptyValDef, Nil))
+        case self.Block(List(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, List(Nil), earlyDefs, parents, selfdef, body)),
                         Apply(Select(New(Ident(tpnme.ANON_CLASS_NAME)), nme.CONSTRUCTOR), Nil)) =>
-          Some((parents, selfdef, body))
+          Some((earlyDefs, parents, selfdef, body))
         case _ =>
           None
       }

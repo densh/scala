@@ -110,19 +110,19 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     trait SyntacticClassDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                constrMods: Modifiers, vparamss: List[List[ValDef]], parents: List[Tree],
-                selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers,
-                                       List[List[ValDef]], List[Tree], ValDef, List[Tree], List[Tree])]
+                constrMods: Modifiers, vparamss: List[List[ValDef]], earlyDefs: List[Tree],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers, List[List[ValDef]],
+                                       List[Tree], List[Tree], ValDef, List[Tree])]
     }
 
     val SyntacticTraitDef: SyntacticTraitDefExtractor
 
     trait SyntacticTraitDefExtractor {
       def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                parents: List[Tree], selfdef: ValDef, earlyDefs: List[Tree], body: List[Tree]): ClassDef
-      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], List[Tree], ValDef, List[Tree], List[Tree])]
-
+                earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
+      def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef],
+                                       List[Tree], List[Tree], ValDef, List[Tree])]
     }
 
     val SyntacticModuleDef: SyntacticModuleDefExtractor
@@ -153,8 +153,8 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticNew: SyntacticNewExtractor
 
     trait SyntacticNewExtractor {
-      def apply(parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
-      def unapply(tree: Tree): Option[(List[Tree], ValDef, List[Tree])]
+      def apply(earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
+      def unapply(tree: Tree): Option[(List[Tree], List[Tree], ValDef, List[Tree])]
     }
 
     val FunctionType: FunctionTypeExtractor
