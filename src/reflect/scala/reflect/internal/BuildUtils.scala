@@ -211,6 +211,19 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
+    object SyntacticModuleDef extends SyntacticModuleDefExtractor {
+      def apply(mods: Modifiers, name: TermName, earlyDefs: List[Tree],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]) =
+        ModuleDef(mods, name, gen.mkTemplate(parents, selfdef, NoMods, Nil, earlyDefs ::: body, NoPosition))
+
+      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+        case ModuleDef(mods, name, UnMkTemplate(parents, selfdef, _, _, earlyDefs, body)) =>
+          Some((mods, name, earlyDefs, parents, selfdef, body))
+        case _ =>
+          None
+      }
+    }
+
     object TupleN extends TupleNExtractor {
       def apply(args: List[Tree]): Tree = args match {
         case Nil      => Literal(Constant(()))

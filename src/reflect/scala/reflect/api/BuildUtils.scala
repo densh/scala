@@ -125,6 +125,14 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     }
 
+    val SyntacticModuleDef: SyntacticModuleDefExtractor
+
+    trait SyntacticModuleDefExtractor {
+      def apply(mods: Modifiers, name: TermName, earlyDefs: List[Tree],
+                parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
+      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[Tree], ValDef, List[Tree])]
+    }
+
     val TupleN: TupleNExtractor
     val TupleTypeN: TupleNExtractor
 

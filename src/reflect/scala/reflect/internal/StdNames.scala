@@ -594,6 +594,7 @@ trait StdNames {
     val StringContext: NameType        = "StringContext"
     val SyntacticBlock: NameType       = "SyntacticBlock"
     val SyntacticClassDef: NameType    = "SyntacticClassDef"
+    val SyntacticModuleDef: NameType   = "SyntacticModuleDef"
     val SyntacticNew: NameType         = "SyntacticNew"
     val SyntacticTraitDef: NameType    = "SyntacticTraitDef"
     val This: NameType                 = "This"

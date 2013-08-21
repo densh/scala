@@ -7,7 +7,7 @@ import scala.reflect.internal.Flags._
 
 trait Reifiers { self: Quasiquotes =>
   import global._
-  import global.build.{SyntacticClassDef, SyntacticTraitDef, SyntacticNew}
+  import global.build.{SyntacticClassDef, SyntacticTraitDef, SyntacticNew, SyntacticModuleDef}
   import global.treeInfo._
   import global.definitions._
   import Cardinality._
@@ -55,13 +55,15 @@ trait Reifiers { self: Quasiquotes =>
     override def reifyTreeSyntactically(tree: Tree) = tree match {
       case SyntacticNew(parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticNew, parents, selfdef, body)
-      case SyntacticTraitDef(mods, name, tparams, parents, selfval, earlyDefs, body) =>
+      case SyntacticTraitDef(mods, name, tparams, parents, selfdef, earlyDefs, body) =>
         mirrorBuildCall(nme.SyntacticTraitDef, reify(mods), reify(name), reifyTparams(tparams),
-                                               reify(parents), reify(selfval), reify(earlyDefs), reify(body))
-      case SyntacticClassDef(mods, name, tparams, constrmods, vparamss, parents, selfval, earlyDefs, body) =>
+                                               reify(parents), reify(selfdef), reify(earlyDefs), reify(body))
+      case SyntacticClassDef(mods, name, tparams, constrmods, vparamss, parents, selfdef, earlyDefs, body) =>
         mirrorBuildCall(nme.SyntacticClassDef, reify(mods), reify(name), reifyTparams(tparams), reify(constrmods),
-                                               reifyVparamss(vparamss), reify(parents), reify(selfval),
+                                               reifyVparamss(vparamss), reify(parents), reify(selfdef),
                                                reify(earlyDefs), reify(body))
+      case SyntacticModuleDef(mods, name, earlyDefs, parents, selfdef, body) =>
+        reifyBuildCall(nme.SyntacticModuleDef, mods, name, earlyDefs, parents, selfdef, body)
       case Block(stats, expr) =>
         reifyBuildCall(nme.SyntacticBlock, stats :+ expr)
       case _ => super.reifyTreeSyntactically(tree)

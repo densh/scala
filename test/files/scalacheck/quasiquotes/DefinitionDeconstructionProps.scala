@@ -42,4 +42,17 @@ object DefinitionDeconstructionProps extends QuasiquoteProperties("definition de
               extends { ..$early } with ..$parents { $self => ..$body }""" = parse(line)
     }
   }
+
+  property("exhaustive object matcher") = test {
+    List(
+      "object Foo",
+      "object Foo extends Bar[T]",
+      "object Foo extends { val early: T = v } with Bar",
+      "object Foo extends Foo { selfy => body }",
+      "private[Bippy] object Foo extends Bar with Baz"
+    ).foreach { line =>
+      val q"""$mods object $name extends { ..$early }
+              with ..$parents { $self => ..$body}""" = parse(line)
+    }
+  }
 }
