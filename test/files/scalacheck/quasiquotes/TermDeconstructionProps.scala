@@ -125,18 +125,21 @@ object TermDeconstructionProps extends QuasiquoteProperties("term deconstruction
     assert(xs ≈ List(q"x1", q"x2", q"x3"))
   }
 
-  property("deconstruct new") = test {
+  property("exhaustive new pattern") = test {
     List(
-      q"new foo",
-      q"new foo { body }",
-      q"new foo[t]",
-      q"new foo(x)",
-      q"new foo[t](x)",
-      q"new foo[t](x) { body }",
-      q"new foo with bar",
-      q"new foo with bar { body }"
-    ).foreach { t =>
-      val q"new $name[..$targs](...$vargss) with ..$mixin { ..$body }" = t
+      "new foo",
+      "new foo { body }",
+      "new foo[t]",
+      "new foo(x)",
+      "new foo[t](x)",
+      "new foo[t](x) { body }",
+      "new foo with bar",
+      "new foo with bar { body }",
+      "new { anonymous }",
+      "new { val early = 1} with Parent[Int] { body }",
+      "new Foo { selfie => }"
+    ).foreach { line =>
+      val q"new { ..$early } with $name[..$targs](...$vargss) with ..$mixin { $self => ..$body }" = parse(line)
     }
   }
 }
