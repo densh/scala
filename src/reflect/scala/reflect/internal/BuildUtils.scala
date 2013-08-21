@@ -146,21 +146,22 @@ trait BuildUtils { self: SymbolTable =>
         val Template(parents, selfdef, tbody) = templ
         def result(ctorMods: Modifiers, vparamss: List[List[ValDef]], edefs: List[Tree], body: List[Tree]) =
           Some((parents, selfdef, ctorMods, vparamss, edefs, body))
+        def indexOfCtor(trees: List[Tree]) =
+          trees.indexWhere { case UnCtor(_, _, _) => true ; case _ => false }
 
         if (tbody forall treeInfo.isInterfaceMember)
           result(NoMods | Flag.TRAIT, Nil, Nil, tbody)
+        else if (indexOfCtor(tbody) == -1)
+          None
         else {
-          val (rawEdefs: List[Tree], rest) = tbody.span(treeInfo.isEarlyDef)
-          val (gvdefs: List[Tree], etdefs: List[Tree]) = rawEdefs.partition(treeInfo.isEarlyValDef)
-          val (fieldDefs, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) = rest.splitAt(rest.indexWhere {
-            case UnCtor(_, _, _) => true
-            case _ => false
-          })
-          val evdefs: List[Tree] = gvdefs.zip(lvdefs).map {
+          val (rawEdefs, rest) = tbody.span(treeInfo.isEarlyDef)
+          val (gvdefs, etdefs) = rawEdefs.partition(treeInfo.isEarlyValDef)
+          val (fieldDefs, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) = rest.splitAt(indexOfCtor(rest))
+          val evdefs = gvdefs.zip(lvdefs).map {
             case (gvdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
               copyValDef(gvdef)(tpt = tpt.original, rhs = rhs)
           }
-          val edefs: List[Tree] = evdefs ::: etdefs
+          val edefs = evdefs ::: etdefs
           if (ctorMods.isTrait)
             result(ctorMods, Nil, edefs, body)
           else {
