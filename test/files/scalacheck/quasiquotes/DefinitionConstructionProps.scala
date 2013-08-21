@@ -33,7 +33,18 @@ object DefinitionConstructionProps extends QuasiquoteProperties("definition cons
     assert(q"trait T extends { $x } with Any" ≈ parse("trait T extends { val x: Int = 1} with Any"))
   }
 
-  property("construct trait with valdefs") = test {
+  property("construct trait with early valdef") = test {
     assert(q"trait T extends { val x: Int = 1 } with Any" ≈ parse("trait T extends { val x: Int = 1 } with Any"))
+  }
+
+  property("splice defs into early block") = test {
+    val defs = q"val x: Int = 0" :: q"type Foo = Bar" :: Nil
+    assert(q"trait T extends { ..$defs } with Bippy" ≈
+           q"trait T extends { val x: Int = 0; type Foo = Bar} with Bippy")
+  }
+
+  property("fail on splicing of non-valid early tree") = test {
+    val defn = q"def x: Int = 0"
+    assertThrows[IllegalArgumentException] { q"trait T extends { $defn } with Bar" }
   }
 }

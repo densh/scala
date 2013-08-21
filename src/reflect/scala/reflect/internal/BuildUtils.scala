@@ -144,39 +144,40 @@ trait BuildUtils { self: SymbolTable =>
     private object UnMkTemplate {
       def unapply(templ: Template): Option[(List[Tree], ValDef, Modifiers, List[List[ValDef]], List[Tree], List[Tree])] = {
         val Template(parents, selfdef, tbody) = templ
+        def result(ctorMods: Modifiers, vparamss: List[List[ValDef]], edefs: List[Tree], body: List[Tree]) =
+          Some((parents, selfdef, ctorMods, vparamss, edefs, body))
 
-        val (ctorMods: Modifiers, vparamss: List[List[ValDef]], evdefs: List[Tree], body: List[Tree]) =
-          if (tbody forall treeInfo.isInterfaceMember)
-            (NoMods | Flag.TRAIT, Nil, Nil, tbody)
-          else {
-            val (gvdefs, rest) = tbody.span(treeInfo.isEarlyDef)
-            val (fieldDefs, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) = rest.splitAt(rest.indexWhere {
-              case UnCtor(_, _, _) => true
-              case _ => false
-            })
-            val evdefs = gvdefs.zip(lvdefs).map {
-              case (gvdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
-                copyValDef(gvdef)(tpt = tpt.original, rhs = rhs)
-            }
-            if (ctorMods.isTrait)
-              (ctorMods, Nil, evdefs, body)
-            else {
-              // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
-              val vparamssRestoredImplicits = ctorVparamss match {
-                case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
-                case other => other
-              }
-              // undo flag modifications by mergeing flag info from constructor args and fieldDefs
-              val modsMap = fieldDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
-              val vparamss = mmap(vparamssRestoredImplicits) { vd =>
-                val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
-                atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
-              }
-              (ctorMods, vparamss, evdefs, body)
-            }
+        if (tbody forall treeInfo.isInterfaceMember)
+          result(NoMods | Flag.TRAIT, Nil, Nil, tbody)
+        else {
+          val (rawEdefs: List[Tree], rest) = tbody.span(treeInfo.isEarlyDef)
+          val (gvdefs: List[Tree], etdefs: List[Tree]) = rawEdefs.partition(treeInfo.isEarlyValDef)
+          val (fieldDefs, UnCtor(ctorMods, ctorVparamss, lvdefs) :: body) = rest.splitAt(rest.indexWhere {
+            case UnCtor(_, _, _) => true
+            case _ => false
+          })
+          val evdefs: List[Tree] = gvdefs.zip(lvdefs).map {
+            case (gvdef @ ValDef(_, _, tpt: TypeTree, _), ValDef(_, _, _, rhs)) =>
+              copyValDef(gvdef)(tpt = tpt.original, rhs = rhs)
           }
-
-        Some((parents, selfdef, ctorMods, vparamss, evdefs, body))
+          val edefs: List[Tree] = evdefs ::: etdefs
+          if (ctorMods.isTrait)
+            result(ctorMods, Nil, edefs, body)
+          else {
+            // undo conversion from (implicit ... ) to ()(implicit ... ) when its the only parameter section
+            val vparamssRestoredImplicits = ctorVparamss match {
+              case Nil :: rest if !rest.isEmpty && !rest.head.isEmpty && rest.head.head.mods.isImplicit => rest
+              case other => other
+            }
+            // undo flag modifications by mergeing flag info from constructor args and fieldDefs
+            val modsMap = fieldDefs.map { case ValDef(mods, name, _, _) => name -> mods }.toMap
+            val vparamss = mmap(vparamssRestoredImplicits) { vd =>
+              val originalMods = modsMap(vd.name) | (vd.mods.flags & DEFAULTPARAM)
+              atPos(vd.pos)(ValDef(originalMods, vd.name, vd.tpt, vd.rhs))
+            }
+            result(ctorMods, vparamss, edefs, body)
+          }
+        }
       }
     }
 
