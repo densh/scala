@@ -222,8 +222,7 @@ abstract class ToolBoxFactory[U <: JavaUniverse](val u: U) { factorySelf =>
                   emptyValDef,
                   NoMods,
                   List(),
-                  List(methdef),
-                  NoPosition))
+                  List(methdef))
           trace("wrapped: ")(showAttributed(moduledef, true, true, settings.Yshowsymkinds.value))
 
           val cleanedUp = resetLocalAttrs(moduledef)
@@ -279,6 +278,15 @@ abstract class ToolBoxFactory[U <: JavaUniverse](val u: U) { factorySelf =>
           case expr :: Nil => expr
           case stats :+ expr => Block(stats, expr)
         }
+      }
+
+      def parseTopLevel(code: String): Tree = {
+        reporter.reset()
+        val file = new BatchSourceFile("<toolbox>", code)
+        val unit = new CompilationUnit(file)
+        val parsed = newUnitParser(unit).parse()
+        throwIfErrors()
+        parsed
       }
 
       def showAttributed(artifact: Any, printTypes: Boolean = true, printIds: Boolean = true, printKinds: Boolean = false): String = {
@@ -385,6 +393,13 @@ abstract class ToolBoxFactory[U <: JavaUniverse](val u: U) { factorySelf =>
     def parse(code: String): u.Tree = {
       if (compiler.settings.verbose) println("parsing "+code)
       val ctree: compiler.Tree = compiler.parse(code)
+      val utree = exporter.importTree(ctree)
+      utree
+    }
+
+    def parseTopLevel(code: String): u.Tree = {
+      if (compiler.settings.verbose) println("parsing "+code)
+      val ctree: compiler.Tree = compiler.parseTopLevel(code)
       val utree = exporter.importTree(ctree)
       utree
     }

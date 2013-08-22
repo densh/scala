@@ -82,6 +82,8 @@ trait ToolBox[U <: scala.reflect.api.Universe] {
   /** .. */
   def parse(code: String): u.Tree
 
+  def parseTopLevel(code: String): u.Tree
+
   /** Compiles a tree using this ToolBox.
    *
    *  If the tree has unresolved type variables (represented as instances of `FreeTypeSymbol` symbols),
