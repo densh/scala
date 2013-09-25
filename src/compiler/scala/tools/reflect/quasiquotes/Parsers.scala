@@ -151,7 +151,7 @@ trait Parsers { self: Quasiquotes =>
   }
 
   object TermParser extends Parser {
-    def entryPoint = { parser => gen.mkTreeOrBlock(parser.templateOrTopStatSeq()) }
+    def entryPoint = parser => Thicket(parser.templateOrTopStatSeq())
   }
 
   object TypeParser extends Parser {

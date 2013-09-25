@@ -140,6 +140,11 @@ trait Printers extends scala.reflect.internal.Printers { this: Global =>
             case xs                 => s()
           }
 
+        case th: Thicket =>
+          print("<<")
+          printTree(th.toTree)
+          print(">>")
+
         // We get a lot of this stuff
         case If( IsTrue(), x, _)        => printTree(x)
         case If(IsFalse(), _, x)        => printTree(x)

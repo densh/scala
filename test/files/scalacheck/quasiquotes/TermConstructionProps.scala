@@ -7,7 +7,6 @@ import scala.reflect.runtime.universe._
 import Flag._
 
 object TermConstructionProps extends QuasiquoteProperties("term construction") {
-
   property("splice single tree return tree itself") = forAll { (t: Tree) =>
     q"$t" ≈ t
   }
@@ -87,8 +86,11 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
     q"throw $t" ≈ Throw(t)
   }
 
-  property("splice trees into type apply") = forAll { (fun: TreeIsTerm, types: List[Tree]) =>
-    q"$fun[..$types]" ≈ (if (types.nonEmpty) TypeApply(fun, types) else fun)
+  property("splice trees into type apply") = forAll { (fun: Tree, types: List[Tree]) =>
+    if (types.isEmpty) q"$fun[..$types]" ≈ fun
+    else if (fun.isTerm) q"$fun[..$types]" ≈ TypeApply(fun, types)
+    else if (fun.isType) q"$fun[..$types]" ≈ AppliedTypeTree(fun, types)
+    else true
   }
 
   property("splice names into import selector") = forAll {
@@ -98,19 +100,19 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
       ImportSelector(plain11, _, plain12, _),
       ImportSelector(oldname1, _, newname1, _),
       ImportSelector(discard1, _, wildcard, _))) =
-        q"import $expr.{$plain, $oldname => $newname, $discard => _}"
+        q"import $expr.{$plain, $oldname => $newname, $discard => _}".toTree
 
     expr1 ≈ expr && plain11 == plain12 && plain12 == plain &&
     oldname1 == oldname && newname1 == newname && discard1 == discard && wildcard == nme.WILDCARD
   }
 
   property("splice trees into while loop") = forAll { (cond: Tree, body: Tree) =>
-    val LabelDef(_, List(), If(cond1, Block(List(body1), Apply(_, List())), Literal(Constant(())))) = q"while($cond) $body"
+    val LabelDef(_, List(), If(cond1, Block(List(body1), Apply(_, List())), Literal(Constant(())))) = q"while($cond) $body".toTree
     body1 ≈ body && cond1 ≈ cond
   }
 
   property("splice trees into do while loop") = forAll { (cond: Tree, body: Tree) =>
-    val LabelDef(_, List(), Block(List(body1), If(cond1, Apply(_, List()), Literal(Constant(()))))) = q"do $body while($cond)"
+    val LabelDef(_, List(), Block(List(body1), If(cond1, Apply(_, List()), Literal(Constant(()))))) = q"do $body while($cond)".toTree
     body1 ≈ body && cond1 ≈ cond
   }
 

@@ -38,6 +38,7 @@ trait Holes { self: Quasiquotes =>
   sealed abstract class Location(val tpe: Type)
   case object UnknownLocation extends Location(NoType)
   case class TreeLocation(override val tpe: Type) extends Location(tpe)
+  object ThicketLocation { def unapply(loc: Location): Boolean = loc match { case TreeLocation(tpe) if tpe <:< thicketType => true case _ => false } }
   case object NameLocation extends Location(nameType)
   case object ModsLocation extends Location(modsType)
   case object FlagsLocation extends Location(flagsType)
@@ -59,7 +60,8 @@ trait Holes { self: Quasiquotes =>
     def makeHole(tree: Tree) = Hole(preprocessor(tree), location, cardinality)
   }
   object HoleType {
-    def unapply(tpe: Type): Option[HoleType] = tpe match {
+    def extract(tpe: Type, card: Cardinality): Option[HoleType] = (tpe, card) match {
+      case ThicketType(holeTpe) => Some(holeTpe)
       case NativeType(holeTpe) => Some(holeTpe)
       case LiftableType(holeTpe) => Some(holeTpe)
       case IterableTreeType(holeTpe) => Some(holeTpe)
@@ -68,16 +70,17 @@ trait Holes { self: Quasiquotes =>
     }
 
     trait HoleTypeExtractor {
-      def unapply(tpe: Type): Option[HoleType] = {
+      def unapply(tpeWithCard: (Type, Cardinality)): Option[HoleType] = {
+        val (tpe, card) = tpeWithCard
         for {
-          preprocessor <- this.preprocessor(tpe)
-          location <- this.location(tpe)
-          cardinality <- Some(this.cardinality(tpe))
+          preprocessor <- this.preprocessor(tpe, card)
+          location <- this.location(tpe, card)
+          cardinality <- Some(this.cardinality(tpe, card))
         } yield HoleType(preprocessor, location, cardinality)
       }
-      def preprocessor(tpe: Type): Option[Tree => Tree]
-      def location(tpe: Type): Option[Location]
-      def cardinality(tpe: Type): Cardinality = parseCardinality(tpe)._1
+      def preprocessor(tpe: Type, card: Cardinality): Option[Tree => Tree]
+      def location(tpe: Type, card: Cardinality): Option[Location]
+      def cardinality(tpe: Type, card: Cardinality): Cardinality = parseCardinality(tpe)._1
 
       def lifter(tpe: Type): Option[Tree => Tree] = {
         val lifterTpe = appliedType(LiftableClass.toType, List(tpe))
@@ -107,9 +110,23 @@ trait Holes { self: Quasiquotes =>
       }
     }
 
+    object ThicketType extends HoleTypeExtractor {
+      def preprocessor(tpe: Type, card: Cardinality) =
+        if (card == NoDot) Some { Select(_, nme.toTree) }
+        else if (card == DotDot) Some { Select(_, nme.toList) }
+        else None
+
+      def location(tpe: Type, card: Cardinality) = {
+        if (tpe <:< thicketType) Some(TreeLocation(thicketType))
+        else None
+      }
+
+      override def cardinality(tpe: Type, card: Cardinality) = card
+    }
+
     object NativeType extends HoleTypeExtractor {
-      def preprocessor(tpe: Type) = Some(identity)
-      def location(tpe: Type) = {
+      def preprocessor(tpe: Type, card: Cardinality) = Some(identity)
+      def location(tpe: Type, card: Cardinality) = {
         if (tpe <:< treeType) Some(TreeLocation(tpe))
         else if (tpe <:< nameType) Some(NameLocation)
         else if (tpe <:< modsType) Some(ModsLocation)
@@ -120,13 +137,13 @@ trait Holes { self: Quasiquotes =>
     }
 
     object LiftableType extends HoleTypeExtractor {
-      def preprocessor(tpe: Type) = lifter(tpe)
-      def location(tpe: Type) = Some(TreeLocation(treeType))
+      def preprocessor(tpe: Type, card: Cardinality) = lifter(tpe)
+      def location(tpe: Type, card: Cardinality) = Some(TreeLocation(treeType))
     }
 
     object IterableTreeType extends HoleTypeExtractor {
-      def preprocessor(tpe: Type) = iterator(tpe)(identity)
-      def location(tpe: Type) = {
+      def preprocessor(tpe: Type, card: Cardinality) = iterator(tpe)(identity)
+      def location(tpe: Type, card: Cardinality) = {
         val (card, elementTpe) = parseCardinality(tpe)
         if (card != NoDot && elementTpe <:< treeType) Some(IterableLocation(card, TreeLocation(elementTpe)))
         else None
@@ -134,14 +151,14 @@ trait Holes { self: Quasiquotes =>
     }
 
     object IterableLiftableType extends HoleTypeExtractor {
-      def preprocessor(tpe: Type) = {
+      def preprocessor(tpe: Type, card: Cardinality) = {
         val (_, elementTpe) = parseCardinality(tpe)
         for {
           lifter <- this.lifter(elementTpe)
           iterator <- this.iterator(tpe)(lifter)
         } yield iterator
       }
-      def location(tpe: Type) = Some(IterableLocation(cardinality(tpe), TreeLocation(treeType)))
+      def location(tpe: Type, card: Cardinality) = Some(IterableLocation(cardinality(tpe, card), TreeLocation(treeType)))
     }
   }
 
@@ -162,19 +179,17 @@ trait Holes { self: Quasiquotes =>
         val suggestCard = holeCard != spliceeCard || holeCard != NoDot
         val spliceeCardMsg = if (holeCard != spliceeCard && spliceeCard != NoDot) s"using $spliceeCard" else "omitting the dots"
         val cardSuggestion = if (suggestCard) spliceeCardMsg else ""
-        def canBeLifted(tpe: Type) = HoleType.LiftableType.unapply(tpe).nonEmpty
+        def canBeLifted(tpe: Type) = HoleType.LiftableType.unapply(tpe, NoDot).nonEmpty
         val suggestLifting = (holeCard == NoDot || spliceeCard != NoDot) && !(elementTpe <:< treeType) && !canBeLifted(elementTpe)
         val liftedTpe = if (holeCard != NoDot) elementTpe else splicee.tpe
         val liftSuggestion = if (suggestLifting) s"providing an implicit instance of Liftable[$liftedTpe]" else ""
         val advice = List(cardSuggestion, liftSuggestion).filter(_ != "").mkString(" or ")
         c.abort(splicee.pos, s"Can't $action, consider $advice")
       }
-      val holeTpe = splicee.tpe match {
-        case _ if holeCard != spliceeCard => cantSplice()
-        case HoleType(holeTpe) => holeTpe
-        case _ => cantSplice()
-      }
-      holeTpe.makeHole(splicee)
+      HoleType.extract(splicee.tpe, holeCard).collect {
+        case h @ HoleType(_, ThicketLocation(), NoDot | DotDot) => h
+        case h if holeCard == spliceeCard => h
+      }.map { _.makeHole(splicee) }.getOrElse { cantSplice() }
     }
   }
 

@@ -72,12 +72,15 @@ trait BuildUtils { self: SymbolTable =>
 
     def mkAnnotation(trees: List[Tree]): List[Tree] = trees.map(mkAnnotation)
 
-    def mkVparamss(argss: List[List[ValDef]]): List[List[ValDef]] = argss.map(_.map(mkParam))
+    def mkVparamss(argss: List[List[Tree]]): List[List[ValDef]] = argss.map(_.map(mkParam))
 
-    def mkParam(vd: ValDef): ValDef = {
-      var newmods = (vd.mods | PARAM) & (~DEFERRED)
-      if (vd.rhs.nonEmpty) newmods |= DEFAULTPARAM
-      copyValDef(vd)(mods = newmods)
+    def mkParam(tree: Tree): ValDef = tree match {
+      case vd: ValDef =>
+        var newmods = (vd.mods | PARAM) & (~DEFERRED)
+        if (vd.rhs.nonEmpty) newmods |= DEFAULTPARAM
+        copyValDef(vd)(mods = newmods)
+      case _ =>
+        throw new IllegalArgumentException(s"$tree is not valid parameter")
     }
 
     def mkTparams(tparams: List[Tree]): List[TypeDef] =
@@ -369,10 +372,13 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object SyntacticFunction extends SyntacticFunctionExtractor {
-      def apply(params: List[ValDef], body: Tree): Tree = {
-        val params0 = params.map { arg =>
-          require(arg.rhs.isEmpty, "anonymous functions don't support default values")
-          mkParam(arg)
+      def apply(params: List[Tree], body: Tree): Tree = {
+        val params0 = params.map {
+          case vd: ValDef =>
+            require(vd.rhs.isEmpty, "anonymous functions don't support default values")
+            mkParam(vd)
+          case tree =>
+            throw new IllegalArgumentException(s"$tree is not a valid parameter")
         }
         Function(params0, body)
       }
@@ -399,7 +405,7 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object SyntacticDefDef extends SyntacticDefDefExtractor {
-      def apply(mods: Modifiers, name: TermName, tparams: List[Tree], vparamss: List[List[ValDef]], tpt: Tree, rhs: Tree): DefDef =
+      def apply(mods: Modifiers, name: TermName, tparams: List[Tree], vparamss: List[List[Tree]], tpt: Tree, rhs: Tree): DefDef =
         DefDef(mods, name, mkTparams(tparams), mkVparamss(vparamss), tpt, rhs)
 
       def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[List[ValDef]], Tree, Tree)] = tree match {

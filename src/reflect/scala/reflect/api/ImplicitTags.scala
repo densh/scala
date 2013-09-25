@@ -101,6 +101,7 @@ trait ImplicitTags {
   implicit val SymTreeTag: ClassTag[SymTree]
   implicit val TemplateTag: ClassTag[Template]
   implicit val TermTreeTag: ClassTag[TermTree]
+  implicit val ThicketTag: ClassTag[Thicket]
   implicit val ThisTag: ClassTag[This]
   implicit val ThrowTag: ClassTag[Throw]
   implicit val TreeTag: ClassTag[Tree]

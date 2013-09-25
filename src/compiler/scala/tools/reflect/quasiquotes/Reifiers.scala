@@ -189,7 +189,6 @@ trait Reifiers { self: Quasiquotes =>
       case RefineStatPlaceholder(tree, _, DotDot) => reifyRefineStat(tree)
       case EarlyDefPlaceholder(tree, _, DotDot) => reifyEarlyDef(tree)
       case PackageStatPlaceholder(tree, _, DotDot) => reifyPackageStat(tree)
-
       case List(Placeholder(tree, _, DotDotDot)) => tree
     } {
       reify(_)

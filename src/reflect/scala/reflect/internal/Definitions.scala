@@ -1299,6 +1299,7 @@ trait Definitions extends api.StandardDefinitions {
       lazy val symbolType = universeMemberType(tpnme.Symbol)
       lazy val treeType0 = universeMemberType(tpnme.Tree)
       lazy val treeType = universeMemberType(tpnme.Tree)
+      lazy val thicketType = universeMemberType(tpnme.Thicket)
       lazy val typeDefType = universeMemberType(tpnme.TypeDef)
       lazy val caseDefType = universeMemberType(tpnme.CaseDef)
       lazy val iterableTreeType = appliedType(IterableClass, treeType)

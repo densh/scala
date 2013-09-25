@@ -185,7 +185,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticFunction: SyntacticFunctionExtractor
 
     trait SyntacticFunctionExtractor {
-      def apply(params: List[ValDef], body: Tree): Tree
+      def apply(params: List[Tree], body: Tree): Tree
 
       def unapply(tree: Tree): Option[(List[ValDef], Tree)]
     }
@@ -193,7 +193,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticDefDef: SyntacticDefDefExtractor
 
     trait SyntacticDefDefExtractor {
-      def apply(mods: Modifiers, name: TermName, tparams: List[Tree], vparamss: List[List[ValDef]], tpt: Tree, rhs: Tree): DefDef
+      def apply(mods: Modifiers, name: TermName, tparams: List[Tree], vparamss: List[List[Tree]], tpt: Tree, rhs: Tree): DefDef
 
       def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[List[ValDef]], Tree, Tree)]
     }

@@ -284,6 +284,11 @@ trait Printers extends api.Printers { self: SymbolTable =>
         case Block(stats, expr) =>
           printColumn(stats ::: List(expr), "{", ";", "}")
 
+        case th: Thicket =>
+          print("<<")
+          printTree(th.toTree)
+          print(">>")
+
         case Match(selector, cases) =>
           val selectorType1 = selectorType
           selectorType = selector.tpe
