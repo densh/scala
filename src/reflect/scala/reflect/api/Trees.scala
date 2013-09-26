@@ -876,20 +876,6 @@ trait Trees { self: Universe =>
    */
   val Block: BlockExtractor
 
-  type Thicket >: Null <: Tree with ThicketApi
-
-  val Thicket: ThicketExtractor
-
-  abstract class ThicketExtractor {
-    def apply(trees: List[Tree]): Thicket
-    def unapply(tree: Tree): Some[List[Tree]]
-  }
-
-  trait ThicketApi {
-    def toTree: Tree
-    def toList: List[Tree]
-  }
-
   /** An extractor class to create and pattern match with syntax `Block(stats, expr)`.
    *  This AST node corresponds to the following Scala code:
    *

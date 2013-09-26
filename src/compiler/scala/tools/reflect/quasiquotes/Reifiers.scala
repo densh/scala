@@ -61,6 +61,8 @@ trait Reifiers { self: Quasiquotes =>
                                               earlyDefs, parents, selfdef, body)
       case SyntacticPackageObjectDef(name, earlyDefs, parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticPackageObjectDef, name, earlyDefs, parents, selfdef, body)
+      case SyntacticPackageDef(ref, body) =>
+        reifyBuildCall(nme.SyntacticPackageDef, ref, body)
       case SyntacticObjectDef(mods, name, earlyDefs, parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticObjectDef, mods, name, earlyDefs, parents, selfdef, body)
       case SyntacticNew(earlyDefs, parents, selfdef, body) =>

@@ -346,18 +346,6 @@ trait Trees extends api.Trees { self: SymbolTable =>
        extends SymTree with TemplateApi
   object Template extends TemplateExtractor
 
-  case class Thicket(trees: List[Tree])
-       extends Tree with ThicketApi {
-    def toTree: Tree = gen.mkTreeOrBlock(trees)
-    def toList: List[Tree] = trees
-  }
-  object Thicket extends ThicketExtractor {
-    def unapply(tree: Tree): Some[List[Tree]] = tree match {
-      case th: Thicket => Some(th.trees)
-      case other => Some(other :: Nil)
-    }
-  }
-
   case class Block(stats: List[Tree], expr: Tree)
        extends TermTree with BlockApi
   object Block extends BlockExtractor
