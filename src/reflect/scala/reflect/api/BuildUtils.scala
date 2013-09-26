@@ -121,8 +121,8 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticClassDef: SyntacticClassDefExtractor
 
     trait SyntacticClassDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                constrMods: Modifiers, vparamss: List[List[ValDef]], earlyDefs: List[Tree],
+      def apply(mods: Modifiers, name: TypeName, tparams: List[Tree],
+                constrMods: Modifiers, vparamss: List[List[Tree]], earlyDefs: List[Tree],
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers, List[List[ValDef]],
                                        List[Tree], List[Tree], ValDef, List[Tree])]
@@ -131,7 +131,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     val SyntacticTraitDef: SyntacticTraitDefExtractor
 
     trait SyntacticTraitDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
+      def apply(mods: Modifiers, name: TypeName, tparams: List[Tree],
                 earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef],
                                        List[Tree], List[Tree], ValDef, List[Tree])]
@@ -151,6 +151,13 @@ private[reflect] trait BuildUtils { self: Universe =>
       def apply(name: TermName, earlyDefs: List[Tree],
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree
       def unapply(tree: Tree): Option[(TermName, List[Tree], List[Tree], ValDef, List[Tree])]
+    }
+
+    val SyntacticPackageDef: SyntacticPackageDefExtractor
+
+    trait SyntacticPackageDefExtractor {
+      def apply(ref: Tree, body: List[Tree]): PackageDef
+      def unapply(tree: PackageDef): Option[(RefTree, List[Tree])]
     }
 
     val SyntacticTuple: SyntacticTupleExtractor

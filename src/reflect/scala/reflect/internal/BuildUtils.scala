@@ -215,11 +215,14 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object SyntacticClassDef extends SyntacticClassDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef],
-                constrMods: Modifiers, vparamss: List[List[ValDef]], earlyDefs: List[Tree],
+      def apply(mods: Modifiers, name: TypeName, tparams: List[Tree],
+                constrMods: Modifiers, vparamss: List[List[Tree]], earlyDefs: List[Tree],
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef = {
         val extraFlags = PARAMACCESSOR | (if (mods.isCase) CASEACCESSOR else 0L)
-        val vparamss0 = vparamss.map { _.map { vd => copyValDef(vd)(mods = (vd.mods | extraFlags) & (~DEFERRED)) } }
+        val vparamss0 = vparamss.map { _.map {
+          case vd: ValDef  => copyValDef(vd)(mods = (vd.mods | extraFlags) & (~DEFERRED))
+          case t           => throw new IllegalArgumentException(s"$t is not a valid class parameter, use ValDefs instead")
+        } }
         val tparams0 = mkTparams(tparams)
         val parents0 = gen.mkParents(mods,
           if (mods.isCase) parents.filter {
@@ -243,7 +246,7 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     object SyntacticTraitDef extends SyntacticTraitDefExtractor {
-      def apply(mods: Modifiers, name: TypeName, tparams: List[TypeDef], earlyDefs: List[Tree],
+      def apply(mods: Modifiers, name: TypeName, tparams: List[Tree], earlyDefs: List[Tree],
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef = {
         val mods0 = mods | TRAIT | ABSTRACT
         val templ = gen.mkTemplate(parents, selfdef, Modifiers(TRAIT), Nil, earlyDefs ::: body)
@@ -283,6 +286,18 @@ trait BuildUtils { self: SymbolTable =>
         case _ =>
           None
       }
+    }
+
+    object SyntacticPackageDef extends SyntacticPackageDefExtractor {
+      def apply(ref: Tree, body: List[Tree]) = {
+        val reftree = ref match {
+          case rt: RefTree => rt
+          case _ => throw new IllegalArgumentException(s"not a ref tree $ref")
+        }
+        PackageDef(reftree, body)
+      }
+
+      def unapply(tree: PackageDef): Option[(RefTree, List[Tree])] = PackageDef.unapply(tree)
     }
 
     private trait ScalaMemberRef {

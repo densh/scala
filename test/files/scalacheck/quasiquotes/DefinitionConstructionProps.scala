@@ -211,13 +211,18 @@ trait MethodConstruction { self: QuasiquoteProperties =>
     assert(q"def foo[..$tparams]" ≈ parse("def foo[A, B <: Bippy]"))
   }
 
-  def assertSameAnnots(tree: {def mods: Modifiers}, annots: List[Tree]) =
-    assert(tree.mods.annotations ≈ annots,
-           s"${tree.mods.annotations} =/= ${annots}")
+  def mods(tree: Tree): Modifiers = tree match {
+    case md: MemberDef => md.mods
+    case _ => throw new IllegalArgumentException(s"mods are not defined for $tree")
+  }
 
-  def assertSameAnnots(tree1: {def mods: Modifiers}, tree2: {def mods: Modifiers}) =
-    assert(tree1.mods.annotations ≈ tree2.mods.annotations,
-           s"${tree1.mods.annotations} =/= ${tree2.mods.annotations}")
+  def assertSameAnnots(tree: Tree, annots: List[Tree]) =
+    assert(mods(tree).annotations ≈ annots,
+           s"${mods(tree).annotations} =/= ${annots}")
+
+  def assertSameAnnots(tree1: Tree, tree2: Tree) =
+    assert(mods(tree1).annotations ≈ mods(tree2).annotations,
+           s"${mods(tree1).annotations} =/= ${mods(tree2).annotations}")
 
   property("splice type name into annotation") = test {
     val name = TypeName("annot")
