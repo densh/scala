@@ -90,6 +90,8 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     def RefTree(qual: Tree, sym: Symbol): Tree
 
+    def unthicketize(tree: Tree): Tree
+
     val ScalaDot: ScalaDotExtractor
 
     trait ScalaDotExtractor {
@@ -157,7 +159,7 @@ private[reflect] trait BuildUtils { self: Universe =>
 
     trait SyntacticPackageDefExtractor {
       def apply(ref: Tree, body: List[Tree]): PackageDef
-      def unapply(tree: PackageDef): Option[(RefTree, List[Tree])]
+      def unapply(tree: Tree): Option[(RefTree, List[Tree])]
     }
 
     val SyntacticTuple: SyntacticTupleExtractor

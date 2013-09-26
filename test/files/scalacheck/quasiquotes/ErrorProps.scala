@@ -15,14 +15,14 @@ object ErrorProps extends QuasiquoteProperties("errors") {
     """)
 
   property("can't splice with given cardinality") = fails(
-    "Can't splice List[reflect.runtime.universe.Ident], consider using ..",
+    "Can't splice List[reflect.runtime.universe.Thicket], consider using ..",
     """
       val xs = List(q"x", q"x")
       q"$xs"
     """)
 
   property("splice typename into typedef with default bounds") = fails(
-    "reflect.runtime.universe.Name expected but reflect.runtime.universe.TypeDef found",
+    "reflect.runtime.universe.Name expected but reflect.runtime.universe.Thicket found",
     """
       val T1 = TypeName("T1")
       val T2 = q"type T"
@@ -93,7 +93,7 @@ object ErrorProps extends QuasiquoteProperties("errors") {
     """)
 
   property("use ... card or provide liftable") = fails(
-    "Can't splice List[List[reflect.runtime.universe.Ident]], consider using ...",
+    "Can't splice List[List[reflect.runtime.universe.Thicket]], consider using ...",
     """
       val xs = List(List(q"x", q"x"))
       q"$xs"

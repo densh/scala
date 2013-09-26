@@ -1,6 +1,4 @@
-import scala.reflect.runtime.universe._
-import scala.reflect.runtime.universe.definitions._
-import scala.reflect.runtime.universe.Flag._
+import scala.reflect.runtime.universe._, definitions._, Flag._, build.unthicketize
 import scala.reflect.runtime.currentMirror
 import scala.reflect.api.{Liftable, Universe}
 import scala.reflect.macros.TypecheckException
@@ -24,20 +22,8 @@ trait Helpers {
       Result(Prop.Proof)
     }
 
-  object unthicketize extends Transformer {
-    def apply(tree: Tree) = transform(tree)
-    override def transform(tree: Tree): Tree = tree match {
-      case th: Thicket => super.transform(th.toTree)
-      case _ => super.transform(tree)
-    }
-  }
-
   implicit class TestSimilarTree(tree1: Tree) {
-    def ≈(tree2: Tree): Boolean = {
-      val t1 = unthicketize(tree1)
-      val t2 = unthicketize(tree2)
-      t1.equalsStructure(t2)
-    }
+    def ≈(tree2: Tree): Boolean = unthicketize(tree1).equalsStructure(unthicketize(tree2))
   }
 
   implicit class TestSimilarListTree(lst: List[Tree]) {

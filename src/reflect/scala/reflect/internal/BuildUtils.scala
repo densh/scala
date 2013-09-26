@@ -62,7 +62,7 @@ trait BuildUtils { self: SymbolTable =>
 
     def setSymbol[T <: Tree](tree: T, sym: Symbol): T = { tree.setSymbol(sym); tree }
 
-    def mkAnnotation(tree: Tree): Tree = tree match {
+    def mkAnnotation(tree: Tree): Tree = unthicketize(tree) match {
       case SyntacticNew(Nil, SyntacticApplied(SyntacticTypeApplied(_, _), _) :: Nil, emptyValDef, Nil) =>
         tree
       case _ =>
@@ -74,7 +74,7 @@ trait BuildUtils { self: SymbolTable =>
 
     def mkVparamss(argss: List[List[Tree]]): List[List[ValDef]] = argss.map(_.map(mkParam))
 
-    def mkParam(tree: Tree): ValDef = tree match {
+    def mkParam(tree: Tree): ValDef = unthicketize(tree) match {
       case vd: ValDef =>
         var newmods = (vd.mods | PARAM) & (~DEFERRED)
         if (vd.rhs.nonEmpty) newmods |= DEFAULTPARAM
@@ -83,32 +83,33 @@ trait BuildUtils { self: SymbolTable =>
         throw new IllegalArgumentException(s"$tree is not valid parameter")
     }
 
-    def mkTparams(tparams: List[Tree]): List[TypeDef] =
-      tparams.map {
-        case td: TypeDef => copyTypeDef(td)(mods = (td.mods | PARAM) & (~DEFERRED))
-        case other => throw new IllegalArgumentException("can't splice $other as type parameter")
-      }
+    def mkTparams(tparams: List[Tree]): List[TypeDef] = tparams.map(unthicketize).map {
+      case td: TypeDef => copyTypeDef(td)(mods = (td.mods | PARAM) & (~DEFERRED))
+      case other => throw new IllegalArgumentException("can't splice $other as type parameter")
+    }
 
     def mkRefineStat(stat: Tree): Tree = {
-      stat match {
+      val ustat = unthicketize(stat)
+      ustat match {
         case dd: DefDef => require(dd.rhs.isEmpty, "can't use DefDef with non-empty body as refine stat")
         case vd: ValDef => require(vd.rhs.isEmpty, "can't use ValDef with non-empty rhs as refine stat")
         case td: TypeDef =>
         case _ => throw new IllegalArgumentException(s"not legal refine stat: $stat")
       }
-      stat
+      ustat
     }
 
     def mkRefineStat(stats: List[Tree]): List[Tree] = stats.map(mkRefineStat)
 
     def mkPackageStat(stat: Tree): Tree = {
-      stat match {
+      val ustat = unthicketize(stat)
+      ustat match {
         case cd: ClassDef =>
         case md: ModuleDef =>
         case pd: PackageDef =>
         case _ => throw new IllegalArgumentException(s"not legal package stat: $stat")
       }
-      stat
+      ustat
     }
 
     def mkPackageStat(stats: List[Tree]): List[Tree] = stats.map(mkPackageStat)
@@ -121,7 +122,7 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
-    def mkEarlyDef(defn: Tree): Tree = defn match {
+    def mkEarlyDef(defn: Tree): Tree = unthicketize(defn) match {
       case vdef @ ValDef(mods, _, _, _) if !mods.isDeferred =>
         copyValDef(vdef)(mods = mods | PRESUPER)
       case tdef @ TypeDef(mods, _, _, _) =>
@@ -131,6 +132,15 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     def mkEarlyDef(defns: List[Tree]): List[Tree] = defns.map(mkEarlyDef)
+
+    def unthicketize(tree: Tree): Tree = unthicketizeTransformer.transform(tree)
+
+    object unthicketizeTransformer extends Transformer {
+      override def transform(tree: Tree): Tree = tree match {
+        case th: Thicket => th.toTree
+        case _ => super.transform(tree)
+      }
+    }
 
     def RefTree(qual: Tree, sym: Symbol) = self.RefTree(qual, sym.name) setSymbol sym
 
@@ -146,7 +156,7 @@ trait BuildUtils { self: SymbolTable =>
         else if (tree.isType) AppliedTypeTree(tree, targs)
         else throw new IllegalArgumentException(s"can't apply types to $tree")
 
-      def unapply(tree: Tree): Some[(Tree, List[Tree])] = tree match {
+      def unapply(tree: Tree): Some[(Tree, List[Tree])] = unthicketize(tree) match {
         case TypeApply(fun, targs) => Some((fun, targs))
         case AppliedTypeTree(tpe, targs) => Some((tpe, targs))
         case _ => Some((tree, Nil))
@@ -158,7 +168,7 @@ trait BuildUtils { self: SymbolTable =>
         argss.foldLeft(tree) { (f, args) => Apply(f, args.map(treeInfo.assignmentToMaybeNamedArg)) }
 
       def unapply(tree: Tree): Some[(Tree, List[List[Tree]])] = {
-        val treeInfo.Applied(fun, targs, argss) = tree
+        val treeInfo.Applied(fun, targs, argss) = unthicketize(tree)
         Some((SyntacticTypeApplied(fun, targs), argss))
       }
     }
@@ -219,7 +229,7 @@ trait BuildUtils { self: SymbolTable =>
                 constrMods: Modifiers, vparamss: List[List[Tree]], earlyDefs: List[Tree],
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): ClassDef = {
         val extraFlags = PARAMACCESSOR | (if (mods.isCase) CASEACCESSOR else 0L)
-        val vparamss0 = vparamss.map { _.map {
+        val vparamss0 = vparamss.map { _.map(unthicketize).map {
           case vd: ValDef  => copyValDef(vd)(mods = (vd.mods | extraFlags) & (~DEFERRED))
           case t           => throw new IllegalArgumentException(s"$t is not a valid class parameter, use ValDefs instead")
         } }
@@ -236,7 +246,7 @@ trait BuildUtils { self: SymbolTable =>
       }
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef], Modifiers, List[List[ValDef]],
-                                       List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+                                       List[Tree], List[Tree], ValDef, List[Tree])] = unthicketize(tree) match {
         case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
           if !ctorMods.isTrait && !ctorMods.hasFlag(JAVA) =>
           Some((mods, name, tparams, ctorMods, vparamss, earlyDefs, parents, selfdef, body))
@@ -254,7 +264,7 @@ trait BuildUtils { self: SymbolTable =>
       }
 
       def unapply(tree: Tree): Option[(Modifiers, TypeName, List[TypeDef],
-                                       List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+                                       List[Tree], List[Tree], ValDef, List[Tree])] = unthicketize(tree) match {
         case ClassDef(mods, name, tparams, UnMkTemplate(parents, selfdef, ctorMods, vparamss, earlyDefs, body))
           if mods.isTrait =>
           Some((mods, name, tparams, earlyDefs, parents, selfdef, body))
@@ -267,7 +277,7 @@ trait BuildUtils { self: SymbolTable =>
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]) =
         ModuleDef(mods, name, gen.mkTemplate(parents, selfdef, NoMods, Nil, earlyDefs ::: body))
 
-      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[Tree], ValDef, List[Tree])] = unthicketize(tree) match {
         case ModuleDef(mods, name, UnMkTemplate(parents, selfdef, _, _, earlyDefs, body)) =>
           Some((mods, name, earlyDefs, parents, selfdef, body))
         case _ =>
@@ -280,7 +290,7 @@ trait BuildUtils { self: SymbolTable =>
                 parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree =
         gen.mkPackageObject(SyntacticObjectDef(NoMods, name, earlyDefs, parents, selfdef, body))
 
-      def unapply(tree: Tree): Option[(TermName, List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(TermName, List[Tree], List[Tree], ValDef, List[Tree])] = unthicketize(tree) match {
         case PackageDef(Ident(name: TermName), List(SyntacticObjectDef(NoMods, nme.PACKAGEkw, earlyDefs, parents, selfdef, body))) =>
           Some((name, earlyDefs, parents, selfdef, body))
         case _ =>
@@ -290,14 +300,17 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticPackageDef extends SyntacticPackageDefExtractor {
       def apply(ref: Tree, body: List[Tree]) = {
-        val reftree = ref match {
+        val reftree = unthicketize(ref) match {
           case rt: RefTree => rt
           case _ => throw new IllegalArgumentException(s"not a ref tree $ref")
         }
         PackageDef(reftree, body)
       }
 
-      def unapply(tree: PackageDef): Option[(RefTree, List[Tree])] = PackageDef.unapply(tree)
+      def unapply(tree: Tree): Option[(RefTree, List[Tree])] = unthicketize(tree) match {
+        case pd: PackageDef => PackageDef.unapply(pd)
+        case _ => None
+      }
     }
 
     private trait ScalaMemberRef {
@@ -335,7 +348,7 @@ trait BuildUtils { self: SymbolTable =>
           self.Apply(TupleClass(args.length).companionModule, args: _*)
       }
 
-      def unapply(tree: Tree): Option[List[Tree]] = tree match {
+      def unapply(tree: Tree): Option[List[Tree]] = unthicketize(tree) match {
         case Literal(Constant(())) =>
           Some(Nil)
         case Apply(TupleCompanionRef(sym), args) if sym == TupleClass(args.length).companionModule =>
@@ -353,7 +366,7 @@ trait BuildUtils { self: SymbolTable =>
           AppliedTypeTree(Ident(TupleClass(args.length)), args)
       }
 
-      def unapply(tree: Tree): Option[List[Tree]] =  tree match {
+      def unapply(tree: Tree): Option[List[Tree]] = unthicketize(tree) match {
         case UnitClassRef(_) =>
           Some(Nil)
         case AppliedTypeTree(TupleClassRef(sym), args) if sym == TupleClass(args.length) =>
@@ -369,7 +382,7 @@ trait BuildUtils { self: SymbolTable =>
         gen.mkFunctionTypeTree(argtpes, restpe)
       }
 
-      def unapply(tree: Tree): Option[(List[Tree], Tree)] = tree match {
+      def unapply(tree: Tree): Option[(List[Tree], Tree)] = unthicketize(tree) match {
         case AppliedTypeTree(FunctionClassRef(sym), args @ (argtpes :+ restpe)) if sym == FunctionClass(args.length - 1) =>
           Some((argtpes, restpe))
         case _ => None
@@ -379,7 +392,7 @@ trait BuildUtils { self: SymbolTable =>
     object SyntacticBlock extends SyntacticBlockExtractor {
       def apply(stats: List[Tree]): Tree = gen.mkBlock(stats)
 
-      def unapply(tree: Tree): Option[List[Tree]] = tree match {
+      def unapply(tree: Tree): Option[List[Tree]] = unthicketize(tree) match {
         case self.Block(stats, expr) => Some(stats :+ expr)
         case _ if tree.isTerm => Some(tree :: Nil)
         case _ => None
@@ -388,7 +401,7 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticFunction extends SyntacticFunctionExtractor {
       def apply(params: List[Tree], body: Tree): Tree = {
-        val params0 = params.map {
+        val params0 = params.map(unthicketize).map {
           case vd: ValDef =>
             require(vd.rhs.isEmpty, "anonymous functions don't support default values")
             mkParam(vd)
@@ -398,7 +411,7 @@ trait BuildUtils { self: SymbolTable =>
         Function(params0, body)
       }
 
-      def unapply(tree: Tree): Option[(List[ValDef], Tree)] = tree match {
+      def unapply(tree: Tree): Option[(List[ValDef], Tree)] = unthicketize(tree) match {
         case Function(params, body) => Some((params, body))
         case _ => None
       }
@@ -408,7 +421,7 @@ trait BuildUtils { self: SymbolTable =>
       def apply(earlyDefs: List[Tree], parents: List[Tree], selfdef: ValDef, body: List[Tree]): Tree =
         gen.mkNew(parents, selfdef, earlyDefs ::: body, NoPosition, NoPosition)
 
-      def unapply(tree: Tree): Option[(List[Tree], List[Tree], ValDef, List[Tree])] = tree match {
+      def unapply(tree: Tree): Option[(List[Tree], List[Tree], ValDef, List[Tree])] = unthicketize(tree) match {
         case SyntacticApplied(Select(New(SyntacticTypeApplied(ident, targs)), nme.CONSTRUCTOR), argss) =>
           Some((Nil, SyntacticApplied(SyntacticTypeApplied(ident, targs), argss) :: Nil, emptyValDef, Nil))
         case SyntacticBlock(SyntacticClassDef(_, tpnme.ANON_CLASS_NAME, Nil, _, ListOfNil, earlyDefs, parents, selfdef, body) ::
@@ -423,7 +436,7 @@ trait BuildUtils { self: SymbolTable =>
       def apply(mods: Modifiers, name: TermName, tparams: List[Tree], vparamss: List[List[Tree]], tpt: Tree, rhs: Tree): DefDef =
         DefDef(mods, name, mkTparams(tparams), mkVparamss(vparamss), tpt, rhs)
 
-      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[List[ValDef]], Tree, Tree)] = tree match {
+      def unapply(tree: Tree): Option[(Modifiers, TermName, List[Tree], List[List[ValDef]], Tree, Tree)] = unthicketize(tree) match {
         case DefDef(mods, name, tparams, vparamss, tpt, rhs) => Some((mods, name, tparams, vparamss, tpt, rhs))
         case _ => None
       }
@@ -437,7 +450,7 @@ trait BuildUtils { self: SymbolTable =>
         ValDef(mods1, name, tpt, rhs)
       }
 
-      def unapply(tree: Tree): Option[(Modifiers, TermName, Tree, Tree)] = tree match {
+      def unapply(tree: Tree): Option[(Modifiers, TermName, Tree, Tree)] = unthicketize(tree) match {
         case ValDef(mods, name, tpt, rhs) if mods.hasFlag(MUTABLE) == isMutable =>
           Some((mods, name, tpt, rhs))
         case _ =>
@@ -450,7 +463,7 @@ trait BuildUtils { self: SymbolTable =>
 
     object SyntacticAssign extends SyntacticAssignExtractor {
       def apply(lhs: Tree, rhs: Tree): Tree = gen.mkAssign(lhs, rhs)
-      def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+      def unapply(tree: Tree): Option[(Tree, Tree)] = unthicketize(tree) match {
         case Assign(lhs, rhs) => Some((lhs, rhs))
         case AssignOrNamedArg(lhs, rhs) => Some((lhs, rhs))
         case Apply(Select(fn, nme.update), args :+ rhs) => Some((atPos(fn.pos)(Apply(fn, args)), rhs))

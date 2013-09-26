@@ -348,8 +348,8 @@ trait Trees extends api.Trees { self: SymbolTable =>
 
   case class Thicket(trees: List[Tree])
        extends Tree with ThicketApi {
-    def toTree: Tree = gen.mkTreeOrBlock(trees)
-    def toList: List[Tree] = trees
+    lazy val toTree: Tree = gen.mkTreeOrBlock(toList)
+    lazy val toList: List[Tree] = trees.map(build.unthicketize)
   }
   object Thicket extends ThicketExtractor {
     def unapply(tree: Tree): Some[List[Tree]] = tree match {
