@@ -24,20 +24,13 @@ trait Helpers {
       Result(Prop.Proof)
     }
 
-  object unthicketize extends Transformer {
-    def apply(tree: Tree) = transform(tree)
-    override def transform(tree: Tree): Tree = tree match {
-      case th: Thicket => super.transform(th.toTree)
-      case _ => super.transform(tree)
-    }
+  implicit class TestSimilarTree(tree1: Tree) {
+    def ≈(tree2: Tree): Boolean = tree1.equalsStructure(tree2)
   }
 
-  implicit class TestSimilarTree(tree1: Tree) {
-    def ≈(tree2: Tree): Boolean = {
-      val t1 = unthicketize(tree1)
-      val t2 = unthicketize(tree2)
-      t1.equalsStructure(t2)
-    }
+  implicit class TestSimilarThicket(th: Thicket) {
+    def ≈(tree: Tree): Boolean = th.toTree ≈ tree
+    def ≈(th2: Thicket): Boolean = th.toList ≈ th2.toList
   }
 
   implicit class TestSimilarListTree(lst: List[Tree]) {
@@ -73,7 +66,7 @@ trait Helpers {
   }
 
   def assertEqAst(t: Tree, code: String) = assert(eqAst(t, code))
-  def eqAst(t: Tree, code: String) = unthicketize(t) ≈ parse(code)
+  def eqAst(t: Tree, code: String) = t ≈ parse(code)
 
   val toolbox = currentMirror.mkToolBox()
   val parse = toolbox.parse(_)

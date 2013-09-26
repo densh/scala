@@ -17,7 +17,7 @@ trait Parsers { self: Quasiquotes =>
   abstract class Parser extends {
     val global: self.global.type = self.global
   } with ScalaParser {
-    def parse(code: String): Tree = {
+    def parse(code: String): Any = {
       try {
         val file = new BatchSourceFile(nme.QUASIQUOTE_FILE, code)
         new QuasiquoteParser(file).parseRule(entryPoint)
@@ -47,7 +47,7 @@ trait Parsers { self: Quasiquotes =>
       case _ => super.token2string(token)
     }
 
-    def entryPoint: QuasiquoteParser => Tree
+    def entryPoint: QuasiquoteParser => Any
 
     class QuasiquoteParser(source0: SourceFile) extends SourceFileParser(source0) { parser =>
       def isHole: Boolean = isIdent && isHole(in.name)

@@ -221,7 +221,7 @@ private[reflect] trait BuildUtils { self: Universe =>
     }
   }
 
-  type Thicket >: Null <: Tree with ThicketApi
+  type Thicket >: Null <: ThicketApi
 
   val Thicket: ThicketExtractor
 
@@ -234,4 +234,8 @@ private[reflect] trait BuildUtils { self: Universe =>
     def toTree: Tree
     def toList: List[Tree]
   }
+
+  import scala.language.implicitConversions
+  implicit def thicket2tree(th: Thicket) = th.toTree
+  implicit def thicket2trees(th: Thicket) = th.toList
 }

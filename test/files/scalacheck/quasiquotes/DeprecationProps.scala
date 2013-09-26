@@ -30,7 +30,7 @@ object DeprecationProps extends QuasiquoteProperties("deprecation") {
   }
 
   property("super sym name") = test {
-    assert(q"$sym.super[$tname].x".toTree.asInstanceOf[Select].qualifier ≈ Super(sym, tname))
+    assert(q"$sym.super[$tname].x".qualifier ≈ Super(sym, tname))
   }
 
   property("throw tpe args") = test {

@@ -100,19 +100,19 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
       ImportSelector(plain11, _, plain12, _),
       ImportSelector(oldname1, _, newname1, _),
       ImportSelector(discard1, _, wildcard, _))) =
-        q"import $expr.{$plain, $oldname => $newname, $discard => _}".toTree
+        q"import $expr.{$plain, $oldname => $newname, $discard => _}"
 
     expr1 ≈ expr && plain11 == plain12 && plain12 == plain &&
     oldname1 == oldname && newname1 == newname && discard1 == discard && wildcard == nme.WILDCARD
   }
 
   property("splice trees into while loop") = forAll { (cond: Tree, body: Tree) =>
-    val LabelDef(_, List(), If(cond1, Block(List(body1), Apply(_, List())), Literal(Constant(())))) = q"while($cond) $body".toTree
+    val LabelDef(_, List(), If(cond1, Block(List(body1), Apply(_, List())), Literal(Constant(())))) = q"while($cond) $body"
     body1 ≈ body && cond1 ≈ cond
   }
 
   property("splice trees into do while loop") = forAll { (cond: Tree, body: Tree) =>
-    val LabelDef(_, List(), Block(List(body1), If(cond1, Apply(_, List()), Literal(Constant(()))))) = q"do $body while($cond)".toTree
+    val LabelDef(_, List(), Block(List(body1), If(cond1, Apply(_, List()), Literal(Constant(()))))) = q"do $body while($cond)"
     body1 ≈ body && cond1 ≈ cond
   }
 

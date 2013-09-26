@@ -33,4 +33,11 @@ trait StandardLiftables { self: Universe =>
       universe.Literal(value.asInstanceOf[universe.Constant])
     }
   }
+
+  implicit object liftThicket extends Liftable[Thicket] {
+    def apply(universe: Universe, value: Thicket): universe.Tree = {
+      requireSameUniverse(universe, "Thicket", value)
+      value.asInstanceOf[universe.Thicket].toTree
+    }
+  }
 }

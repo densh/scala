@@ -27,13 +27,20 @@ trait Reifiers { self: Quasiquotes =>
     def action = if (isReifyingExpressions) "splice" else "extract"
     def holesHaveTypes = isReifyingExpressions
 
-    def reifyFillingHoles(tree: Tree): Tree = {
-      val reified = reifyTree(tree)
+    def reifyFillingHoles(any: Any): Tree = {
+      val reified = reify(any)
       holeMap.unused.foreach { hole =>
         c.abort(holeMap(hole).tree.pos, s"Don't know how to $action here")
       }
       reified
     }
+
+    override def reify(any: Any) = any match {
+      case th: Thicket => reifyThicket(th)
+      case _ => super.reify(any)
+    }
+
+    def reifyThicket(th: Thicket) = mirrorCall(nme.Thicket, reify(th.toList))
 
     override def reifyTree(tree: Tree): Tree =
       reifyTreePlaceholder(tree) orElse

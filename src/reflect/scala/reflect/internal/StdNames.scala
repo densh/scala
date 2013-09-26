@@ -620,6 +620,7 @@ trait StdNames {
     val SyntacticTypeApplied: NameType = "SyntacticTypeApplied"
     val SyntacticValDef: NameType      = "SyntacticValDef"
     val SyntacticVarDef: NameType      = "SyntacticVarDef"
+    val Thicket: NameType              = "Thicket"
     val This: NameType                 = "This"
     val ThisType: NameType             = "ThisType"
     val True : NameType                = "True"
