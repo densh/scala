@@ -826,7 +826,7 @@ self =>
             atPos(start, in.skipToken()) { makeFunctionTypeTree(ts, typ()) }
           else {
             ts foreach checkNotByNameOrVarargs
-            val tuple = atPos(start) { makeTupleType(ts, flattenUnary = true) }
+            val tuple = atPos(start) { makeTupleType(ts) }
             infixTypeRest(
               compoundTypeRest(
                 annotTypeRest(
@@ -888,7 +888,7 @@ self =>
       def simpleType(): Tree = {
         val start = in.offset
         simpleTypeRest(in.token match {
-          case LPAREN   => atPos(start)(makeTupleType(inParens(types()), flattenUnary = true))
+          case LPAREN   => atPos(start)(makeTupleType(inParens(types())))
           case USCORE   => wildcardType(in.skipToken())
           case _        =>
             path(thisOK = false, typeOK = true) match {
