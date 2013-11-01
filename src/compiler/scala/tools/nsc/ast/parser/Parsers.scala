@@ -1674,8 +1674,8 @@ self =>
      *                |  val Pattern1 `=' Expr
      *  }}}
      */
-    def enumerators(): List[Enumerator] = {
-      val enums = new ListBuffer[Enumerator]
+    def enumerators(): List[Tree] = {
+      val enums = new ListBuffer[Tree]
       generator(enums, eqOK = false)
       while (isStatSep) {
         in.nextToken()
@@ -1689,7 +1689,7 @@ self =>
      *  Generator ::= Pattern1 (`<-' | `=') Expr [Guard]
      *  }}}
      */
-    def generator(enums: ListBuffer[Enumerator], eqOK: Boolean) {
+    def generator(enums: ListBuffer[Tree], eqOK: Boolean) {
       val start  = in.offset
       val hasVal = in.token == VAL
       if (hasVal)
