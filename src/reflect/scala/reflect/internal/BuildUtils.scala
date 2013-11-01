@@ -442,6 +442,100 @@ trait BuildUtils { self: SymbolTable =>
       }
     }
 
+    object SyntacticYield {
+      def apply(tree: Tree): Tree =
+        Apply(self.Ident(nme.YIELDkw).updateAttachment(ForAttachment), List(tree))
+
+      def unapply(tree: Tree): Option[Tree] = tree match {
+        case Apply(id @ self.Ident(nme.YIELDkw), List(tree))
+          if id.hasAttachment[ForAttachment.type] =>
+          Some(tree)
+        case _  => None
+      }
+    }
+
+    object SyntacticValFrom extends SyntacticValFromExtractor {
+      def apply(pat: Tree, rhs: Tree): Tree =
+        Apply(self.Ident(nme.LARROWkw).updateAttachment(ForAttachment),
+          List(pat, gen.mkCheckIfRefutable(pat, rhs)))
+
+      def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+        case Apply(id @ self.Ident(nme.LARROWkw), List(pat, rhs))
+          if id.hasAttachment[ForAttachment.type] =>
+          rhs match {
+            case UnCheckIfRefutable(pat1, rhs1) if pat.equalsStructure(pat1) =>
+              Some((pat, rhs1))
+            case _ =>
+              Some((pat, rhs))
+          }
+        case _ => None
+      }
+    }
+
+    object SyntacticValEq extends SyntacticValEqExtractor {
+      def apply(pat: Tree, rhs: Tree): Tree =
+        Assign(pat, rhs).updateAttachment(ForAttachment)
+
+      def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+        case Assign(pat, rhs)
+          if tree.hasAttachment[ForAttachment.type] =>
+          Some((pat, rhs))
+        case _ => None
+      }
+    }
+
+    object SyntacticFilter extends SyntacticFilterExtractor {
+      def apply(tree: Tree) =
+        Apply(self.Ident(nme.IFkw).updateAttachment(ForAttachment), List(tree))
+
+      def unapply(tree: Tree): Option[Tree] = tree match {
+        case Apply(id @ self.Ident(nme.IFkw), List(cond))
+          if id.hasAttachment[ForAttachment.type] =>
+          Some(cond)
+        case _ => None
+      }
+    }
+
+    // undo gen.mkSyntheticParam
+    protected object UnSyntheticParam {
+      def unapply(tree: Tree): Option[TermName] = tree match {
+        case ValDef(mods, name, _, EmptyTree)
+          if mods.hasFlag(SYNTHETIC) && mods.hasFlag(PARAM) =>
+          Some(name)
+        case _ => None
+      }
+    }
+
+    // undo gen.mkVisitor
+    protected object UnVisitor {
+      def unapply(tree: Tree): Option[(TermName, List[CaseDef])] = tree match {
+        case Function(UnSyntheticParam(x1) :: Nil, Match(MaybeUnchecked(Ident(x2)), cases))
+          if x1 == x2 =>
+          Some((x1, cases))
+        case _ => None
+      }
+    }
+
+    // match call to either withFilter or filter
+    protected object FilterCall {
+      def unapply(tree: Tree): Option[(Tree,Tree)] = tree match {
+        case Apply(Select(obj, nme.withFilter | nme.filter), arg :: Nil) =>
+          Some(obj, arg)
+        case _ => None
+      }
+    }
+
+    // undo gen.mkCheckIfRefutable
+    protected object UnCheckIfRefutable {
+      def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+        case FilterCall(rhs, UnVisitor(name,
+            CaseDef(pat, EmptyTree, Literal(Constant(true))) ::
+            CaseDef(Ident(nme.WILDCARD), EmptyTree, Literal(Constant(false))) :: Nil))
+          if name.toString.contains(nme.CHECK_IF_REFUTABLE_STRING) =>
+          Some((pat, rhs))
+        case _ => None
+      }
+    }
     // use typetree's original instead of typetree itself
     protected object MaybeTypeTreeOriginal {
       def unapply(tree: Tree): Some[Tree] = tree match {
@@ -455,6 +549,18 @@ trait BuildUtils { self: SymbolTable =>
       def unapply(tree: Tree): Some[Tree] = tree match {
         case Select(f, nme.apply) => Some(f)
         case other                => Some(other)
+      }
+    }
+
+    // drop potential @scala.unchecked annotation
+    protected object MaybeUnchecked {
+      def unapply(tree: Tree): Some[Tree] = tree match {
+        case Annotated(SyntacticNew(Nil, Apply(ScalaDot(tpnme.unchecked), Nil) :: Nil, noSelfType, Nil), annottee) =>
+          Some(annottee)
+        case Typed(annottee, MaybeTypeTreeOriginal(
+          Annotated(SyntacticNew(Nil, Apply(ScalaDot(tpnme.unchecked), Nil) :: Nil, noSelfType, Nil), _))) =>
+          Some(annottee)
+        case annottee => Some(annottee)
       }
     }
   }

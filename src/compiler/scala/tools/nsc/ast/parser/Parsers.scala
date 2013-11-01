@@ -132,6 +132,7 @@ trait Parsers extends Scanners with MarkupParsers with ParsersCommon {
 self =>
   val global: Global
   import global._
+  import global.build.{SyntacticValFrom => ValFrom, SyntacticValEq => ValEq, SyntacticFilter => Filter, SyntacticYield => Yield}
 
   case class OpInfo(operand: Tree, operator: Name, offset: Offset)
 
@@ -1359,7 +1360,7 @@ self =>
           newLinesOpt()
           if (in.token == YIELD) {
             in.nextToken()
-            makeForYield(enums, expr())
+            makeFor(enums, Yield(expr()))
           } else {
             makeFor(enums, expr())
           }
@@ -1674,8 +1675,8 @@ self =>
      *                |  val Pattern1 `=' Expr
      *  }}}
      */
-    def enumerators(): List[Enumerator] = {
-      val enums = new ListBuffer[Enumerator]
+    def enumerators(): List[Tree] = {
+      val enums = new ListBuffer[Tree]
       generator(enums, eqOK = false)
       while (isStatSep) {
         in.nextToken()
@@ -1689,7 +1690,7 @@ self =>
      *  Generator ::= Pattern1 (`<-' | `=') Expr [Guard]
      *  }}}
      */
-    def generator(enums: ListBuffer[Enumerator], eqOK: Boolean) {
+    def generator(enums: ListBuffer[Tree], eqOK: Boolean) {
       val start  = in.offset
       val hasVal = in.token == VAL
       if (hasVal)
@@ -1713,7 +1714,7 @@ self =>
       while (in.token == IF) enums += makeFilter(in.offset, guard())
     }
 
-    def makeFilter(start: Offset, tree: Tree) = Filter(r2p(start, tree.pos.point, tree.pos.end), tree)
+    def makeFilter(start: Offset, tree: Tree) = Filter(tree) setPos r2p(start, tree.pos.point, tree.pos.end)
 
 /* -------- PATTERNS ------------------------------------------- */
 
