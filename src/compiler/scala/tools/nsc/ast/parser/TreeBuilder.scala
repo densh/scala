@@ -265,6 +265,18 @@ abstract class TreeBuilder {
     }
   }
 
+  object Yield {
+    def apply(tree: Tree): Tree =
+      Apply(Ident(nme.YIELDkw).updateAttachment(ForAttachment), List(tree))
+
+    def unapply(tree: Tree): Option[Tree] = tree match {
+      case Apply(id @ Ident(nme.YIELDkw), List(tree))
+        if id.hasAttachment[ForAttachment.type] =>
+        Some(tree)
+      case _  => None
+    }
+  }
+
   /** Create tree for for-comprehension <for (enums) do body> or
   *   <for (enums) yield body> where mapName and flatMapName are chosen
   *  corresponding to whether this is a for-do or a for-yield.
@@ -313,7 +325,11 @@ abstract class TreeBuilder {
   *  @param enums        The enumerators in the for expression
   *  @param body          The body of the for expression
   */
-  private def makeFor(mapName: TermName, flatMapName: TermName, enums: List[Tree], body: Tree): Tree = {
+  def makeFor(enums: List[Tree], sugarBody: Tree)(implicit fresh: FreshNameCreator): Tree = {
+    val (mapName, flatMapName, body) = sugarBody match {
+      case Yield(tree) => (nme.map, nme.flatMap, tree)
+      case _           => (nme.foreach, nme.foreach, sugarBody)
+    }
 
     /* make a closure pat => body.
      * The closure is assigned a transparent position with the point at pos.point and
@@ -363,11 +379,9 @@ abstract class TreeBuilder {
         makeCombination(closurePos(pos), mapName, rhs, pat, body)
       case ValFrom(pos, pat, rhs) :: (rest @ (ValFrom(_,  _, _) :: _)) =>
         makeCombination(closurePos(pos), flatMapName, rhs, pat,
-                        makeFor(mapName, flatMapName, rest, body))
+                        makeFor(rest, sugarBody))
       case ValFrom(pos, pat, rhs) :: Filter(_, test) :: rest =>
-        makeFor(mapName, flatMapName,
-                ValFrom(pos, pat, makeCombination(rhs.pos union test.pos, nme.withFilter, rhs, pat.duplicate, test)) :: rest,
-                body)
+        makeFor(ValFrom(pos, pat, makeCombination(rhs.pos union test.pos, nme.withFilter, rhs, pat.duplicate, test)) :: rest, sugarBody)
       case ValFrom(pos, pat, rhs) :: rest =>
         val valeqs = rest.take(definitions.MaxTupleArity - 1).takeWhile { ValEq.unapply(_).nonEmpty }
         assert(!valeqs.isEmpty)
@@ -378,24 +392,16 @@ abstract class TreeBuilder {
         val defpats = pats map makeBind
         val pdefs = (defpats, rhss).zipped flatMap makePatDef
         val ids = (defpat1 :: defpats) map makeValue
-        val rhs1 = makeForYield(
+        val rhs1 = makeFor(
           List(ValFrom(pos, defpat1, rhs)),
-          Block(pdefs, atPos(wrappingPos(ids)) { makeTupleTerm(ids) }) setPos wrappingPos(pdefs))
+          Yield(Block(pdefs, atPos(wrappingPos(ids)) { makeTupleTerm(ids) }) setPos wrappingPos(pdefs)))
         val allpats = (pat :: pats) map (_.duplicate)
         val vfrom1 = ValFrom(r2p(pos.start, pos.point, rhs1.pos.end), atPos(wrappingPos(allpats)) { makeTupleTerm(allpats) } , rhs1)
-        makeFor(mapName, flatMapName, vfrom1 :: rest1, body)
+        makeFor(vfrom1 :: rest1, sugarBody)
       case _ =>
         EmptyTree //may happen for erroneous input
     }
   }
-
-  /** Create tree for for-do comprehension <for (enums) body> */
-  def makeFor(enums: List[Tree], body: Tree): Tree =
-    makeFor(nme.foreach, nme.foreach, enums, body)
-
-  /** Create tree for for-yield comprehension <for (enums) yield body> */
-  def makeForYield(enums: List[Tree], body: Tree): Tree =
-    makeFor(nme.map, nme.flatMap, enums, body)
 
   /** Create tree for a pattern alternative */
   def makeAlternative(ts: List[Tree]): Tree = {

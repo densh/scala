@@ -1359,7 +1359,7 @@ self =>
           newLinesOpt()
           if (in.token == YIELD) {
             in.nextToken()
-            makeForYield(enums, expr())
+            makeFor(enums, Yield(expr()))
           } else {
             makeFor(enums, expr())
           }
