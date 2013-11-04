@@ -467,26 +467,26 @@ abstract class TreeGen extends macros.TreeBuilder {
   }
 
   object ValFrom {
-    def apply(pos: Position, pat: Tree, rhs: Tree): Tree =
+    def apply(pat: Tree, rhs: Tree): Tree =
       Apply(Ident(nme.LARROWkw).updateAttachment(ForAttachment),
-        List(pat, rhs)).setPos(pos)
+        List(pat, rhs))
 
-    def unapply(tree: Tree): Option[(Position, Tree, Tree)] = tree match {
-      case app @ Apply(id @ Ident(nme.LARROWkw), List(pat, rhs))
+    def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+      case Apply(id @ Ident(nme.LARROWkw), List(pat, rhs))
         if id.hasAttachment[ForAttachment.type] =>
-        Some((app.pos, pat, rhs))
+        Some((pat, rhs))
       case _ => None
     }
   }
 
   object ValEq {
-    def apply(pos: Position, pat: Tree, rhs: Tree): Tree =
-      Assign(pat, rhs).updateAttachment(ForAttachment).setPos(pos)
+    def apply(pat: Tree, rhs: Tree): Tree =
+      Assign(pat, rhs).updateAttachment(ForAttachment)
 
-    def unapply(tree: Tree): Option[(Position, Tree, Tree)] = tree match {
-      case ass @ Assign(pat, rhs)
+    def unapply(tree: Tree): Option[(Tree, Tree)] = tree match {
+      case Assign(pat, rhs)
         if tree.hasAttachment[ForAttachment.type] =>
-        Some((ass.pos, pat, rhs))
+        Some((pat, rhs))
       case _ => None
     }
   }
@@ -495,10 +495,10 @@ abstract class TreeGen extends macros.TreeBuilder {
     def apply(pos: Position, tree: Tree) =
       Apply(Ident(nme.IFkw).updateAttachment(ForAttachment), List(tree)).setPos(pos)
 
-    def unapply(tree: Tree): Option[(Position, Tree)] = tree match {
-      case app @ Apply(id @ Ident(nme.IFkw), List(cond))
+    def unapply(tree: Tree): Option[Tree] = tree match {
+      case Apply(id @ Ident(nme.IFkw), List(cond))
         if id.hasAttachment[ForAttachment.type] =>
-        Some((app.pos, cond))
+        Some((cond))
       case _ => None
     }
   }
@@ -613,28 +613,28 @@ abstract class TreeGen extends macros.TreeBuilder {
     }
 
     enums match {
-      case ValFrom(pos, pat, rhs) :: Nil =>
-        makeCombination(closurePos(pos), mapName, rhs, pat, body)
-      case ValFrom(pos, pat, rhs) :: (rest @ (ValFrom(_,  _, _) :: _)) =>
-        makeCombination(closurePos(pos), flatMapName, rhs, pat,
+      case (t @ ValFrom(pat, rhs)) :: Nil =>
+        makeCombination(closurePos(t.pos), mapName, rhs, pat, body)
+      case (t @ ValFrom(pat, rhs)) :: (rest @ (ValFrom(_, _) :: _)) =>
+        makeCombination(closurePos(t.pos), flatMapName, rhs, pat,
                         mkFor(rest, sugarBody))
-      case ValFrom(pos, pat, rhs) :: Filter(_, test) :: rest =>
-        mkFor(ValFrom(pos, pat, makeCombination(rhs.pos union test.pos, nme.withFilter, rhs, pat.duplicate, test)) :: rest, sugarBody)
-      case ValFrom(pos, pat, rhs) :: rest =>
+      case (t @ ValFrom(pat, rhs)) :: Filter(test) :: rest =>
+        mkFor(ValFrom(pat, makeCombination(rhs.pos union test.pos, nme.withFilter, rhs, pat.duplicate, test)).setPos(t.pos) :: rest, sugarBody)
+      case (t @ ValFrom(pat, rhs)) :: rest =>
         val valeqs = rest.take(definitions.MaxTupleArity - 1).takeWhile { ValEq.unapply(_).nonEmpty }
         assert(!valeqs.isEmpty)
         val rest1 = rest.drop(valeqs.length)
-        val pats = valeqs map { case ValEq(_, pat, _) => pat }
-        val rhss = valeqs map { case ValEq(_, _, rhs) => rhs }
+        val pats = valeqs map { case ValEq(pat, _) => pat }
+        val rhss = valeqs map { case ValEq(_, rhs) => rhs }
         val defpat1 = makeBind(pat)
         val defpats = pats map makeBind
         val pdefs = (defpats, rhss).zipped flatMap mkPatDef
         val ids = (defpat1 :: defpats) map makeValue
         val rhs1 = mkFor(
-          List(ValFrom(pos, defpat1, rhs)),
+          List(ValFrom(defpat1, rhs).setPos(t.pos)),
           Yield(Block(pdefs, atPos(wrappingPos(ids)) { mkTuple(ids) }) setPos wrappingPos(pdefs)))
         val allpats = (pat :: pats) map (_.duplicate)
-        val vfrom1 = ValFrom(rangePos(pos.source, pos.start, pos.point, rhs1.pos.end), atPos(wrappingPos(allpats)) { mkTuple(allpats) } , rhs1)
+        val vfrom1 = ValFrom(atPos(wrappingPos(allpats)) { mkTuple(allpats) }, rhs1).setPos(rangePos(t.pos.source, t.pos.start, t.pos.point, rhs1.pos.end))
         mkFor(vfrom1 :: rest1, sugarBody)
       case _ =>
         EmptyTree //may happen for erroneous input
@@ -718,8 +718,8 @@ abstract class TreeGen extends macros.TreeBuilder {
       if (valeq || treeInfo.isVarPatternDeep(pat)) rhs
       else mkFilter(rhs, pat1.duplicate, nme.CHECK_IF_REFUTABLE_STRING)
 
-    if (valeq) ValEq(pos, pat1, rhs1)
-    else ValFrom(pos, pat1, rhs1)
+    if (valeq) ValEq(pat1, rhs1).setPos(pos)
+    else ValFrom(pat1, rhs1).setPos(pos)
   }
 
   def mkFilter(tree: Tree, condition: Tree, scrutineeName: String)(implicit fresh: FreshNameCreator): Tree = {
