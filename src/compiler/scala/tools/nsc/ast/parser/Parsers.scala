@@ -1725,7 +1725,7 @@ self =>
       gen.mkGenerator(genPos, pat, hasEq, rhs) :: tail
     }
 
-    def makeFilter(start: Offset, tree: Tree) = gen.Filter(r2p(start, tree.pos.point, tree.pos.end), tree)
+    def makeFilter(start: Offset, tree: Tree) = gen.Filter(tree).setPos(r2p(start, tree.pos.point, tree.pos.end))
 
 /* -------- PATTERNS ------------------------------------------- */
 

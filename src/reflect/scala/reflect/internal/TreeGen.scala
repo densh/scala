@@ -492,8 +492,8 @@ abstract class TreeGen extends macros.TreeBuilder {
   }
 
   object Filter {
-    def apply(pos: Position, tree: Tree) =
-      Apply(Ident(nme.IFkw).updateAttachment(ForAttachment), List(tree)).setPos(pos)
+    def apply(tree: Tree) =
+      Apply(Ident(nme.IFkw).updateAttachment(ForAttachment), List(tree))
 
     def unapply(tree: Tree): Option[Tree] = tree match {
       case Apply(id @ Ident(nme.IFkw), List(cond))
@@ -714,23 +714,20 @@ abstract class TreeGen extends macros.TreeBuilder {
   /** Create tree for for-comprehension generator <val pat0 <- rhs0> */
   def mkGenerator(pos: Position, pat: Tree, valeq: Boolean, rhs: Tree)(implicit fresh: FreshNameCreator): Tree = {
     val pat1 = patvarTransformer.transform(pat)
-    val rhs1 =
-      if (valeq || treeInfo.isVarPatternDeep(pat)) rhs
-      else mkFilter(rhs, pat1.duplicate, nme.CHECK_IF_REFUTABLE_STRING)
-
-    if (valeq) ValEq(pat1, rhs1).setPos(pos)
-    else ValFrom(pat1, rhs1).setPos(pos)
+    if (valeq) ValEq(pat1, rhs).setPos(pos)
+    else ValFrom(pat1, mkCheckIfRefutable(pat1, rhs)).setPos(pos)
   }
 
-  def mkFilter(tree: Tree, condition: Tree, scrutineeName: String)(implicit fresh: FreshNameCreator): Tree = {
-    val cases = List(
-      CaseDef(condition, EmptyTree, Literal(Constant(true))),
-      CaseDef(Ident(nme.WILDCARD), EmptyTree, Literal(Constant(false)))
-    )
-    val matchTree = mkVisitor(cases, checkExhaustive = false, scrutineeName)
-
-    atPos(tree.pos)(Apply(Select(tree, nme.withFilter), matchTree :: Nil))
-  }
+  def mkCheckIfRefutable(pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator) =
+    if (treeInfo.isVarPatternDeep(pat)) rhs
+    else {
+      val cases = List(
+        CaseDef(pat.duplicate, EmptyTree, Literal(Constant(true))),
+        CaseDef(Ident(nme.WILDCARD), EmptyTree, Literal(Constant(false)))
+      )
+      val visitor = mkVisitor(cases, checkExhaustive = false, nme.CHECK_IF_REFUTABLE_STRING)
+      atPos(rhs.pos)(Apply(Select(rhs, nme.withFilter), visitor :: Nil))
+    }
 
   /** If tree is a variable pattern, return Some("its name and type").
    *  Otherwise return none */
