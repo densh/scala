@@ -662,7 +662,7 @@ abstract class TreeGen extends macros.TreeBuilder {
       //                  ...
       //                  val/var x_N = t$._N
 
-      val rhsUnchecked = gen.mkUnchecked(rhs)
+      val rhsUnchecked = mkUnchecked(rhs)
 
       // TODO: clean this up -- there is too much information packked into mkPatDef's `pat` argument
       // when it's a simple identifier (case Some((name, tpt)) -- above),
@@ -686,7 +686,7 @@ abstract class TreeGen extends macros.TreeBuilder {
           rhs1,
           List(
             atPos(pat1.pos) {
-              CaseDef(pat1, EmptyTree, gen.mkTuple(vars map (_._1) map Ident.apply))
+              CaseDef(pat1, EmptyTree, mkTuple(vars map (_._1) map Ident.apply))
             }
           ))
       }
@@ -749,8 +749,8 @@ abstract class TreeGen extends macros.TreeBuilder {
   def mkVisitor(cases: List[CaseDef], checkExhaustive: Boolean, prefix: String = "x$")(implicit fresh: FreshNameCreator): Tree = {
     val x   = freshTermName(prefix)
     val id  = Ident(x)
-    val sel = if (checkExhaustive) id else gen.mkUnchecked(id)
-    Function(List(gen.mkSyntheticParam(x)), Match(sel, cases))
+    val sel = if (checkExhaustive) id else mkUnchecked(id)
+    Function(List(mkSyntheticParam(x)), Match(sel, cases))
   }
 
   /** Traverse pattern and collect all variable names with their types in buffer
