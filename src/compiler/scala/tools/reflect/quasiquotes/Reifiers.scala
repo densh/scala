@@ -319,6 +319,10 @@ trait Reifiers { self: Quasiquotes =>
       case ParamPlaceholder(Hole(tree, DotDot)) => tree
       case List(ParamPlaceholder(Hole(tree, DotDotDot))) => tree
       case List(Placeholder(Hole(tree, DotDotDot))) => tree
+      case SyntacticPatDef(mods, pat, rhs) =>
+        reifyBuildCall(nme.SyntacticPatDef, mods, pat, rhs)
+      case SyntacticValDef(mods, p @ Placeholder(h: ApplyHole), EmptyTypTree(), rhs) if h.tpe <:< treeType =>
+        mirrorBuildCall(nme.SyntacticPatDef, reify(mods), h.tree, reify(rhs))
     } {
       reify(_)
     }

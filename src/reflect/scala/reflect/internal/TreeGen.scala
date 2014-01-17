@@ -346,7 +346,7 @@ abstract class TreeGen extends macros.TreeBuilder {
       }
       param
     }
-    
+
     val (edefs, rest) = body span treeInfo.isEarlyDef
     val (evdefs, etdefs) = edefs partition treeInfo.isEarlyValDef
     val gvdefs = evdefs map {
@@ -385,11 +385,11 @@ abstract class TreeGen extends macros.TreeBuilder {
     }
     constr foreach (ensureNonOverlapping(_, parents ::: gvdefs, focus = false))
     // Field definitions for the class - remove defaults.
-    
+
     val fieldDefs = vparamss.flatten map (vd => {
       val field = copyValDef(vd)(mods = vd.mods &~ DEFAULTPARAM, rhs = EmptyTree)
       // Prevent overlapping of `field` end's position with default argument's start position.
-      // This is needed for `Positions.Locator(pos).traverse` to return the correct tree when 
+      // This is needed for `Positions.Locator(pos).traverse` to return the correct tree when
       // the `pos` is a point position with all its values equal to `vd.rhs.pos.start`.
       if(field.pos.isRange && vd.rhs.pos.isRange) field.pos = field.pos.withEnd(vd.rhs.pos.start - 1)
       field
@@ -685,11 +685,11 @@ abstract class TreeGen extends macros.TreeBuilder {
   }
 
   /** Create tree for pattern definition <val pat0 = rhs> */
-  def mkPatDef(pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator): List[Tree] =
+  def mkPatDef(pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator): List[ValDef] =
     mkPatDef(Modifiers(0), pat, rhs)
 
   /** Create tree for pattern definition <mods val pat0 = rhs> */
-  def mkPatDef(mods: Modifiers, pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator): List[Tree] = matchVarPattern(pat) match {
+  def mkPatDef(mods: Modifiers, pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator): List[ValDef] = matchVarPattern(pat) match {
     case Some((name, tpt)) =>
       List(atPos(pat.pos union rhs.pos) {
         ValDef(mods, name.toTermName, tpt, rhs)

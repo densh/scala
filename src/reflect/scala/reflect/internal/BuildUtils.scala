@@ -447,10 +447,9 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     protected class SyntacticValDefBase(isMutable: Boolean) extends SyntacticValDefExtractor {
-      def apply(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree) = {
-        val mods1 = if (isMutable) mods | MUTABLE else mods
-        ValDef(mods1, name, tpt, rhs)
-      }
+      def modifiers(mods: Modifiers): Modifiers = if (isMutable) mods | MUTABLE else mods
+
+      def apply(mods: Modifiers, name: TermName, tpt: Tree, rhs: Tree): ValDef = ValDef(modifiers(mods), name, tpt, rhs)
 
       def unapply(tree: Tree): Option[(Modifiers, TermName, Tree, Tree)] = tree match {
         case ValDef(mods, name, tpt, rhs) if mods.hasFlag(MUTABLE) == isMutable =>
@@ -508,7 +507,7 @@ trait BuildUtils { self: SymbolTable =>
     }
 
     // abstract over possible alternative representations of no type in valdef
-    protected object EmptyTypTree {
+    object EmptyTypTree {
       def unapply(tree: Tree): Boolean = tree match {
         case EmptyTree => true
         case tt: TypeTree if (tt.original == null || tt.original.isEmpty) => true
@@ -518,25 +517,54 @@ trait BuildUtils { self: SymbolTable =>
 
     // match a sequence of desugared `val $pat = $value`
     protected object UnPatSeq {
-      def unapply(trees: List[Tree]): Option[List[(Tree, Tree)]] = trees match {
-        case Nil => Some(Nil)
-        // case q"$mods val ${_}: ${_} = ${MaybeUnchecked(value)} match { case $pat => (..$ids) }" :: tail
+      def unapply(trees: List[Tree]): Option[List[(Tree, Tree)]] = {
+        val imploded = implodePatDefs(trees)
+        val patvalues = imploded.flatMap {
+          case SyntacticPatDef(_, pat, rhs) => Some((pat, rhs))
+          case ValDef(_, name, EmptyTypTree(), rhs) => Some((Bind(name, self.Ident(nme.WILDCARD)), rhs))
+          case ValDef(_, name, tpt, rhs) => Some((Bind(name, Typed(self.Ident(nme.WILDCARD), tpt)), rhs))
+          case _ => None
+        }
+        if (patvalues.length == imploded.length) Some(patvalues) else None
+      }
+    }
+
+    // implode multiple-statement desugaring of pattern definitions
+    // into single-statement valdefs with nme.QUASIQUOTE_PAT_DEF name
+    object implodePatDefs extends Transformer {
+      override def transform(tree: Tree) = tree match {
+        case templ: Template => deriveTemplate(templ)(transformStats)
+        case block: Block =>
+          val SyntacticBlock(stats) = block
+          SyntacticBlock(transformStats(stats)).copyAttrs(block)
+        case _ =>
+          super.transform(tree)
+      }
+      def transformStats(trees: List[Tree]): List[Tree] = trees match {
+        case Nil => Nil
         case ValDef(mods, _, _, Match(MaybeUnchecked(value), CaseDef(pat, EmptyTree, SyntacticTuple(ids)) :: Nil)) :: tail
           if mods.hasFlag(SYNTHETIC) && mods.hasFlag(ARTIFACT) =>
-          tail.drop(ids.length) match {
-            case UnPatSeq(rest) => Some((pat, value) :: rest)
-            case _ => None
+          ids match {
+            case Nil =>
+              ValDef(NoMods, nme.QUASIQUOTE_PAT_DEF, pat, transform(value)) :: transformStats(tail)
+            case _   =>
+              val mods = tail.take(1).head.asInstanceOf[ValDef].mods
+              ValDef(mods, nme.QUASIQUOTE_PAT_DEF, pat, transform(value)) :: transformStats(tail.drop(ids.length))
           }
-        // case q"${_} val $name1: ${_} = ${MaybeUnchecked(value)} match { case $pat => ${Ident(name2)} }" :: UnPatSeq(rest)
-        case ValDef(_, name1, _, Match(MaybeUnchecked(value), CaseDef(pat, EmptyTree, Ident(name2)) :: Nil)) :: UnPatSeq(rest)
+        case ValDef(mods, name1, _, Match(MaybeUnchecked(value), CaseDef(pat, EmptyTree, Ident(name2)) :: Nil)) :: tail
           if name1 == name2 =>
-          Some((pat, value) :: rest)
-        // case q"${_} val $name: ${EmptyTypTree()} = $value" :: UnPatSeq(rest) =>
-        case ValDef(_, name, EmptyTypTree(), value) :: UnPatSeq(rest) =>
-          Some((Bind(name, self.Ident(nme.WILDCARD)), value) :: rest)
-        // case q"${_} val $name: $tpt = $value" :: UnPatSeq(rest) =>
-        case ValDef(_, name, tpt, value) :: UnPatSeq(rest) =>
-          Some((Bind(name, Typed(self.Ident(nme.WILDCARD), tpt)), value) :: rest)
+          ValDef(mods, nme.QUASIQUOTE_PAT_DEF, pat, transform(value)) :: transformStats(tail)
+        case other :: tail =>
+          transform(other) :: transformTrees(tail)
+      }
+      def apply(tree: Tree) = transform(tree)
+      def apply(trees: List[Tree]) = transformStats(trees)
+    }
+
+    object SyntacticPatDef extends SyntacticPatDefExtractor {
+      def apply(mods: Modifiers, pat: Tree, rhs: Tree): List[ValDef] = gen.mkPatDef(mods, pat, rhs)
+      def unapply(tree: Tree): Option[(Modifiers, Tree, Tree)] = tree match {
+        case ValDef(mods, nme.QUASIQUOTE_PAT_DEF, pat, rhs) => Some((mods, pat, rhs))
         case _ => None
       }
     }
