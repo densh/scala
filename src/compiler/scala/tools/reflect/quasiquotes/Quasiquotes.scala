@@ -47,7 +47,7 @@ abstract class Quasiquotes extends Parsers
     debug(s"\ncode to parse:\n$code\n")
     val tree = parse(code)
     debug(s"parsed:\n${showRaw(tree)}\n$tree\n")
-    val reified = reify(build.implodePatDefs(tree))
+    val reified = reify(tree)
     val sreified =
       reified
         .toString

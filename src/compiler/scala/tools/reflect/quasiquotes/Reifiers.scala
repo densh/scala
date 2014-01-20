@@ -162,7 +162,7 @@ trait Reifiers { self: Quasiquotes =>
         reifyBuildCall(nme.SyntacticNew, earlyDefs, parents, selfdef, body)
       case SyntacticDefDef(mods, name, tparams, build.ImplicitParams(vparamss, implparams), tpt, rhs) =>
         if (implparams.nonEmpty)
-          mirrorBuildCall(nme.SyntacticDefDef, reify(mods), reify(name), reify(tparams), 
+          mirrorBuildCall(nme.SyntacticDefDef, reify(mods), reify(name), reify(tparams),
                           reifyBuildCall(nme.ImplicitParams, vparamss, implparams), reify(tpt), reify(rhs))
         else
           reifyBuildCall(nme.SyntacticDefDef, mods, name, tparams, vparamss, tpt, rhs)

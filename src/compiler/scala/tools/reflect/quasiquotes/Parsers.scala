@@ -50,6 +50,8 @@ trait Parsers { self: Quasiquotes =>
 
     def entryPoint: QuasiquoteParser => Tree
 
+    def normalize(tree: Tree) = build.implodePatDefs(tree)
+
     class QuasiquoteParser(source0: SourceFile) extends SourceFileParser(source0) { parser =>
       def isHole: Boolean = isIdent && isHole(in.name)
 
@@ -175,8 +177,8 @@ trait Parsers { self: Quasiquotes =>
   object TermParser extends Parser {
     def entryPoint = { parser =>
       parser.templateOrTopStatSeq() match {
-        case head :: Nil => Block(Nil, head)
-        case lst => gen.mkTreeOrBlock(lst)
+        case head :: Nil => Block(Nil, normalize(head))
+        case lst => normalize(gen.mkTreeOrBlock(lst))
       }
     }
   }
@@ -186,7 +188,7 @@ trait Parsers { self: Quasiquotes =>
   }
 
   object CaseParser extends Parser {
-    def entryPoint = _.caseClause()
+    def entryPoint = parser => normalize(parser.caseClause())
   }
 
   object PatternParser extends Parser {
@@ -200,7 +202,7 @@ trait Parsers { self: Quasiquotes =>
     def entryPoint = { parser =>
       val enums = parser.enumerator(isFirst = false, allowNestedIf = false)
       assert(enums.length == 1)
-      enums.head
+      normalize(enums.head)
     }
   }
 

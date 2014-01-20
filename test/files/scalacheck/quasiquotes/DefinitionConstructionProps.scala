@@ -9,18 +9,18 @@ object DefinitionConstructionProps
     with ValDefConstruction
     with DefConstruction
     with PackageConstruction {
-  property("SI-6842") = test {
-    val x: Tree = q"val x: Int"
-    assertEqAst(q"def f($x) = 0", "def f(x: Int) = 0")
-    assertEqAst(q"class C($x)", "class C(val x: Int)")
-    assertEqAst(q"class C { $x => }", "class C { x: Int => }")
-    assertEqAst(q"trait B { $x => }", "trait B { x: Int => }")
-    assertEqAst(q"object A { $x => }", "object A { x: Int => }")
-    val t: Tree = q"type T"
-    assertEqAst(q"def f[$t] = 0", "def f[T] = 0")
-    assertEqAst(q"class C[$t]", "class C[T]")
-    assertEqAst(q"trait B[$t]", "trait B[T]")
-  }
+
+  val x: Tree = q"val x: Int"
+  property("SI-6842 a1") = test { assertEqAst(q"def f($x) = 0", "def f(x: Int) = 0") }
+  property("SI-6842 a2") = test { assertEqAst(q"class C($x)", "class C(val x: Int)") }
+  property("SI-6842 a3") = test { assertEqAst(q"class C { $x => }", "class C { x: Int => }") }
+  property("SI-6842 a4") = test { assertEqAst(q"trait B { $x => }", "trait B { x: Int => }") }
+  property("SI-6842 a5") = test { assertEqAst(q"object A { $x => }", "object A { x: Int => }") }
+
+  val t: Tree = q"type T"
+  property("SI-6842 b1") = test { assertEqAst(q"def f[$t] = 0", "def f[T] = 0") }
+  property("SI-6842 b2") = test { assertEqAst(q"class C[$t]", "class C[T]") }
+  property("SI-6842 b3") = test { assertEqAst(q"trait B[$t]", "trait B[T]") }
 }
 
 trait ClassConstruction { self: QuasiquoteProperties =>
