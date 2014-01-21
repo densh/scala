@@ -73,21 +73,30 @@ trait Holes { self: Quasiquotes =>
   }
 
   class ApplyHole(card: Cardinality, splicee: Tree) extends Hole {
-    val (strippedTpe, tpe): (Type, Type) = {
-      if (stripIterable(splicee.tpe)._1.value < card.value) cantSplice()
-      val (_, strippedTpe) = stripIterable(splicee.tpe, limit = Some(card))
-      if (isBottomType(strippedTpe)) cantSplice()
-      else if (isNativeType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, strippedTpe))
-      else if (isLiftableType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, treeType))
-      else cantSplice()
-    }
+    val (strippedTpe, tpe): (Type, Type) =
+      if (stripIterable(splicee.tpe)._1.value < card.value) {
+        if (card == DotDot && (splicee.tpe <:< treeType || isLiftableType(splicee.tpe)))
+          (treeType, iterableTypeFromCard(DotDot, treeType))
+        else
+          cantSplice()
+      } else {
+        val (_, strippedTpe) = stripIterable(splicee.tpe, limit = Some(card))
+        if (isBottomType(strippedTpe)) cantSplice()
+        else if (isNativeType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, strippedTpe))
+        else if (isLiftableType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, treeType))
+        else cantSplice()
+      }
 
     val tree = {
       def inner(itpe: Type)(tree: Tree) =
         if (isNativeType(itpe)) tree
         else if (isLiftableType(itpe)) lifted(itpe)(tree)
         else global.abort("unreachable")
+      def toStats(tree: Tree): Tree =
+        // q"$u.build.SyntacticBlock.unapply($tree).get"
+        Select(Apply(Select(Select(Select(u, nme.build), nme.SyntacticBlock), nme.unapply), tree :: Nil), nme.get)
       if (card == NoDot) inner(strippedTpe)(splicee)
+      else if (card == DotDot && (splicee.tpe <:< treeType || isLiftableType(splicee.tpe))) toStats(inner(splicee.tpe)(splicee))
       else iterated(card, strippedTpe, inner(strippedTpe))(splicee)
     }
 

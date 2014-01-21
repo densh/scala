@@ -90,13 +90,6 @@ object ErrorProps extends QuasiquoteProperties("errors") {
       q"$xs"
     """)
 
-  property("use zero card") = fails(
-    "Can't splice reflect.runtime.universe.Tree with .., consider omitting the dots",
-    """
-      val t = EmptyTree
-      q"f(..$t)"
-    """)
-
   property("not liftable or natively supported") = fails(
     "Can't splice StringBuilder, consider providing an implicit instance of Liftable[StringBuilder]",
     """

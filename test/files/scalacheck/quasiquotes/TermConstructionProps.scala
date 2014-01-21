@@ -224,4 +224,14 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
   property("SI-8009") = test {
     q"`foo`".asInstanceOf[reflect.internal.SymbolTable#Ident].isBackquoted
   }
+
+  property("SI-7275 a") = test {
+    val t = q"stat1; stat2"
+    assertEqAst(q"..$t", "{stat1; stat2}")
+  }
+
+  property("SI-7275 b") = test {
+    def f(t: Tree) = q"..$t"
+    assertEqAst(f(q"stat1; stat2"), "{stat1; stat2}")
+  }
 }
