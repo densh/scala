@@ -52,13 +52,6 @@ object ErrorProps extends QuasiquoteProperties("errors") {
       StringContext("\"", "\"").q(x)
     """)
 
-  property("expected different cardinality") = fails(
-    "Can't splice List[reflect.runtime.universe.Tree] with ..., consider using ..",
-    """
-      val args: List[Tree] = Nil
-      q"f(...$args)"
-    """)
-
   property("non-liftable type ..") = fails(
     "Can't splice List[StringBuilder] with .., consider omitting the dots or providing an implicit instance of Liftable[StringBuilder]",
     """

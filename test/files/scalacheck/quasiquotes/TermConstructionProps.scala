@@ -234,4 +234,10 @@ object TermConstructionProps extends QuasiquoteProperties("term construction") {
     def f(t: Tree) = q"..$t"
     assertEqAst(f(q"stat1; stat2"), "{stat1; stat2}")
   }
+
+  property("SI-7275 c") = test {
+    object O
+    implicit val liftO = Liftable[O.type] { _ => q"foo; bar" }
+    assertEqAst(q"..$O", "foo; bar")
+  }
 }

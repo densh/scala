@@ -41,12 +41,14 @@ trait Holes { self: Quasiquotes =>
     (tpe <:< flagsType) || (tpe <:< symbolType)
   protected def isBottomType(tpe: Type) =
     tpe <:< NothingClass.tpe || tpe <:< NullClass.tpe
+  protected def extractIterableTParam(tpe: Type) =
+    IterableTParam.asSeenFrom(tpe, IterableClass)
   protected def stripIterable(tpe: Type, limit: Option[Cardinality] = None): (Cardinality, Type) =
     if (limit.map { _ == NoDot }.getOrElse { false }) (NoDot, tpe)
     else if (tpe != null && !isIterableType(tpe)) (NoDot, tpe)
     else if (isBottomType(tpe)) (NoDot, tpe)
     else {
-      val targ = IterableTParam.asSeenFrom(tpe, IterableClass)
+      val targ = extractIterableTParam(tpe)
       val (card, innerTpe) = stripIterable(targ, limit.map { _.pred })
       (card.succ, innerTpe)
     }
@@ -73,31 +75,22 @@ trait Holes { self: Quasiquotes =>
   }
 
   class ApplyHole(card: Cardinality, splicee: Tree) extends Hole {
-    val (strippedTpe, tpe): (Type, Type) =
-      if (stripIterable(splicee.tpe)._1.value < card.value) {
-        if (card == DotDot && (splicee.tpe <:< treeType || isLiftableType(splicee.tpe)))
-          (treeType, iterableTypeFromCard(DotDot, treeType))
-        else
-          cantSplice()
-      } else {
-        val (_, strippedTpe) = stripIterable(splicee.tpe, limit = Some(card))
-        if (isBottomType(strippedTpe)) cantSplice()
-        else if (isNativeType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, strippedTpe))
-        else if (isLiftableType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, treeType))
-        else cantSplice()
-      }
+    val (strippedTpe, tpe): (Type, Type) = {
+      val (strippedCard, strippedTpe) = stripIterable(splicee.tpe, limit = Some(card))
+      // if (stripIterable(splicee.tpe)._1.value < card.value) cantSplice()
+      if (isBottomType(strippedTpe)) cantSplice()
+      else if (isNativeType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, strippedTpe))
+      else if (isLiftableType(strippedTpe)) (strippedTpe, iterableTypeFromCard(card, treeType))
+      else cantSplice()
+    }
 
     val tree = {
       def inner(itpe: Type)(tree: Tree) =
         if (isNativeType(itpe)) tree
         else if (isLiftableType(itpe)) lifted(itpe)(tree)
         else global.abort("unreachable")
-      def toStats(tree: Tree): Tree =
-        // q"$u.build.SyntacticBlock.unapply($tree).get"
-        Select(Apply(Select(Select(Select(u, nme.build), nme.SyntacticBlock), nme.unapply), tree :: Nil), nme.get)
       if (card == NoDot) inner(strippedTpe)(splicee)
-      else if (card == DotDot && (splicee.tpe <:< treeType || isLiftableType(splicee.tpe))) toStats(inner(splicee.tpe)(splicee))
-      else iterated(card, strippedTpe, inner(strippedTpe))(splicee)
+      else iterated(card, splicee, splicee.tpe)
     }
 
     val pos = splicee.pos
@@ -128,23 +121,56 @@ trait Holes { self: Quasiquotes =>
       atPos(tree.pos)(TypeApply(Select(lifted, nme.asInstanceOf_), List(targetType)))
     }
 
-    protected def iterated(card: Cardinality, tpe: Type, elementTransform: Tree => Tree = identity)(tree: Tree): Tree = {
-      assert(card != NoDot)
-      def reifyIterable(tree: Tree, n: Cardinality): Tree = {
-        def loop(tree: Tree, n: Cardinality): Tree =
-          if (n == NoDot) elementTransform(tree)
-          else {
-            val x: TermName = c.freshName()
-            val wrapped = reifyIterable(Ident(x), n.pred)
-            val xToWrapped = Function(List(ValDef(Modifiers(PARAM), x, TypeTree(), EmptyTree)), wrapped)
-            Select(Apply(Select(tree, nme.map), List(xToWrapped)), nme.toList)
-          }
-        if (tree.tpe != null && (tree.tpe <:< listTreeType || tree.tpe <:< listListTreeType)) tree
-        else atPos(tree.pos)(loop(tree, n))
-      }
-      reifyIterable(tree, card)
+    protected def toStats(tree: Tree): Tree = q"$u.build.toStats($tree)"
+
+    protected def toList(tree: Tree, tpe: Type): Tree =
+      if (isListType(tpe)) tree
+      else q"$tree.toList"
+
+    protected def mapF(tree: Tree, f: Tree => Tree): Tree =
+      if (!(f(q"x") equalsStructure q"x")) {
+        val x: TermName = c.freshName()
+        q"$tree.map { $x => ${f(Ident(x))} }"
+      } else tree
+
+    protected object IterableType {
+      def unapply(tpe: Type): Option[Type] =
+        if (isIterableType(tpe)) Some(extractIterableTParam(tpe)) else None
+    }
+
+    protected object LiftedType {
+      def unapply(tpe: Type): Option[Tree => Tree] =
+        if (tpe <:< treeType) Some(t => t)
+        else if (isLiftableType(tpe)) Some(lifted(tpe)(_))
+        else None
+    }
+
+   /**
+    *                                    T <: Tree                         T: Liftable
+    * ..${x: List[T]}                ==> x                             ==> x.map(lift)
+    * ..${x: Iterable[T]}            ==> x.toList                      ==> x.toList.map(lift)
+    * ..${x: T}                      ==> toStats(x)                    ==> toStats(lift(x))
+    *
+    * ...${x: List[List[T]]}         ==> x                             ==> x.map { _.map(lift) } }
+    * ...${x: List[Iterable[T]}      ==> x.map { _.toList }            ==> x.map { _.toList.map(lift) } }
+    * ...${x: List[T]}               ==> x.map { toStats(_) }          ==> x.map { toStats(lift(_)) }
+    * ...${x: Iterable[List[T]]}     ==> x.toList                      ==> x.toList.map { _.map(lift) }
+    * ...${x: Iterable[Iterable[T]]} ==> x.toList { _.toList }         ==> x.toList.map { _.toList.map(lift) }
+    * ...${x: Iterable[T]}           ==> x.toList.map { toStats(_) }   ==> x.toList.map { toStats(lift(_)) }
+    * ...${x: T}                     ==> toStats(x).map { toStats(_) } ==> toStats(lift(x)).map(toStats)
+    */
+    protected def iterated(card: Cardinality, tree: Tree, tpe: Type): Tree = (card, tpe) match {
+      case (DotDot, tpe @ IterableType(LiftedType(lift))) => mapF(toList(tree, tpe), lift)
+      case (DotDot, LiftedType(lift))                     => toStats(lift(tree))
+
+      case (DotDotDot, tpe @ IterableType(innerTpe)) => mapF(toList(tree, tpe), t => iterated(DotDot, t, innerTpe))
+      case (DotDotDot, LiftedType(lift))             => mapF(toStats(lift(tree)), toStats)
+
+      case _ => global.abort("unreachable")
     }
   }
+
+
 
   class UnapplyHole(val cardinality: Cardinality, pat: Tree) extends Hole {
     val (placeholderName, pos, tptopt) = pat match {
