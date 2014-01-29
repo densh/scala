@@ -44,7 +44,8 @@ abstract class TreeBuilder {
   def makeTupleType(elems: List[Tree]) = gen.mkTupleType(elems)
 
   def stripParens(t: Tree) = t match {
-    case Parens(ts) => atPos(t.pos) { makeTupleTerm(ts) }
+    case Parens(t :: Nil) => t.updateAttachment(InParensAttachment)
+    case Parens(ts) => atPos(t.pos)(makeTupleTerm(ts))
     case _ => t
   }
 

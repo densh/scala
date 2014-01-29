@@ -40,6 +40,10 @@ trait StdAttachments {
    */
   case object SyntheticUnitAttachment extends PlainAttachment
 
+  /** Identifies expression or pattern which used to be enclosed in parens.
+   */
+  case object InParensAttachment extends PlainAttachment
+
   /** Untyped list of subpatterns attached to selector dummy. */
   case class SubpatternsAttachment(patterns: List[Tree])
 }

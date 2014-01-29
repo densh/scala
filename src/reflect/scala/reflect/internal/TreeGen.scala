@@ -696,12 +696,12 @@ abstract class TreeGen extends macros.TreeBuilder {
 
   /** Create tree for pattern definition <mods val pat0 = rhs> */
   def mkPatDef(mods: Modifiers, pat: Tree, rhs: Tree)(implicit fresh: FreshNameCreator): List[Tree] = matchVarPattern(pat) match {
-    case Some((name, tpt)) =>
+    case Some((name, tpt)) if !(pat.hasAttachment[InParensAttachment.type]) =>
       List(atPos(pat.pos union rhs.pos) {
         ValDef(mods, name.toTermName, tpt, rhs)
       })
 
-    case None =>
+    case _ =>
       //  in case there is exactly one variable x_1 in pattern
       //  val/var p = e  ==>  val/var x_1 = e.match (case p => (x_1))
       //
