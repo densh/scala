@@ -615,7 +615,7 @@ abstract class TreeGen extends macros.TreeBuilder {
     def makeClosure(pos: Position, pat: Tree, body: Tree): Tree = {
       def wrapped  = wrappingPos(List(pat, body))
       def splitpos = (if (pos != NoPosition) wrapped.withPoint(pos.point) else pos).makeTransparent
-      matchVarPattern(pat) match {
+      matchVarPattern(pat, includingTyped = false) match {
         case Some((name, tpt)) =>
           Function(
             List(atPos(pat.pos) { ValDef(Modifiers(PARAM), name.toTermName, tpt, EmptyTree) }),
@@ -780,17 +780,17 @@ abstract class TreeGen extends macros.TreeBuilder {
 
   /** If tree is a variable pattern, return Some("its name and type").
    *  Otherwise return none */
-  private def matchVarPattern(tree: Tree): Option[(Name, Tree)] = {
+  private def matchVarPattern(tree: Tree, includingTyped: Boolean = true): Option[(Name, Tree)] = {
     def wildType(t: Tree): Option[Tree] = t match {
-      case Ident(x) if x.toTermName == nme.WILDCARD             => Some(TypeTree())
-      case Typed(Ident(x), tpt) if x.toTermName == nme.WILDCARD => Some(tpt)
-      case _                                                    => None
+      case Ident(x) if x.toTermName == nme.WILDCARD                               => Some(TypeTree())
+      case Typed(Ident(x), tpt) if x.toTermName == nme.WILDCARD && includingTyped => Some(tpt)
+      case _                                                                      => None
     }
     tree match {
-      case Ident(name)             => Some((name, TypeTree()))
-      case Bind(name, body)        => wildType(body) map (x => (name, x))
-      case Typed(Ident(name), tpt) => Some((name, tpt))
-      case _                       => None
+      case Ident(name)                               => Some((name, TypeTree()))
+      case Bind(name, body) if includingTyped        => wildType(body) map (x => (name, x))
+      case Typed(Ident(name), tpt) if includingTyped => Some((name, tpt))
+      case _                                         => None
     }
   }
 
