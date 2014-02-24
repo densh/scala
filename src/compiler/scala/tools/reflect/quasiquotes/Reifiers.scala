@@ -151,9 +151,15 @@ trait Reifiers { self: Quasiquotes =>
         mirrorCall(nme.This, tree)
       case SyntacticTraitDef(mods, name, tparams, earlyDefs, parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticTraitDef, mods, name, tparams, earlyDefs, parents, selfdef, body)
-      case SyntacticClassDef(mods, name, tparams, constrmods, vparamss, earlyDefs, parents, selfdef, body) =>
-        reifyBuildCall(nme.SyntacticClassDef, mods, name, tparams, constrmods, vparamss,
-                                              earlyDefs, parents, selfdef, body)
+      case SyntacticClassDef(mods, name, tparams, constrmods, build.ImplicitParams(vparamss, implparams),
+                             earlyDefs, parents, selfdef, body) =>
+        if (implparams.nonEmpty)
+          mirrorBuildCall(nme.SyntacticClassDef, reify(mods), reify(name), reify(tparams), reify(constrmods),
+                                                 reifyBuildCall(nme.ImplicitParams, vparamss, implparams),
+                                                 reify(earlyDefs), reify(parents), reify(selfdef), reify(body))
+        else
+          reifyBuildCall(nme.SyntacticClassDef, mods, name, tparams, constrmods, vparamss,
+                                                earlyDefs, parents, selfdef, body)
       case SyntacticPackageObjectDef(name, earlyDefs, parents, selfdef, body) =>
         reifyBuildCall(nme.SyntacticPackageObjectDef, name, earlyDefs, parents, selfdef, body)
       case SyntacticObjectDef(mods, name, earlyDefs, parents, selfdef, body) =>
@@ -163,7 +169,8 @@ trait Reifiers { self: Quasiquotes =>
       case SyntacticDefDef(mods, name, tparams, build.ImplicitParams(vparamss, implparams), tpt, rhs) =>
         if (implparams.nonEmpty)
           mirrorBuildCall(nme.SyntacticDefDef, reify(mods), reify(name), reify(tparams),
-                          reifyBuildCall(nme.ImplicitParams, vparamss, implparams), reify(tpt), reify(rhs))
+                                               reifyBuildCall(nme.ImplicitParams, vparamss, implparams),
+                                               reify(tpt), reify(rhs))
         else
           reifyBuildCall(nme.SyntacticDefDef, mods, name, tparams, vparamss, tpt, rhs)
       case SyntacticValDef(mods, name, tpt, rhs) if tree != noSelfType =>
