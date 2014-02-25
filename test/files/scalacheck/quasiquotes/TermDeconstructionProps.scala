@@ -186,4 +186,16 @@ object TermDeconstructionProps extends QuasiquoteProperties("term deconstruction
     assert(init ≈ List(q"a", q"b"))
     assert(last ≈ q"c")
   }
+
+  property("term select doesn't match type select") = test {
+    assertThrows[MatchError] {
+      val q"$qual.$name" = tq"foo.bar"
+    }
+  }
+
+  property("type application doesn't match applied type") = test {
+    assertThrows[MatchError] {
+      val q"$f[..$targs]" = tq"foo[bar]"
+    }
+  }
 }
